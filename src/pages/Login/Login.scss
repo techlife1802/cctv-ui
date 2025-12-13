@@ -1,0 +1,134 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap');
+
+.login-page {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #cbd5e1;
+  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-image:
+      radial-gradient(rgba(255, 255, 255, 0.1) 2px, transparent 2px);
+    background-size: 30px 30px;
+    pointer-events: none;
+  }
+
+  font-family: 'Outfit',
+  sans-serif;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.08),
+    0 9px 28px 0 rgba(0, 0, 0, 0.05),
+    0 12px 48px 16px rgba(0, 0, 0, 0.03);
+  padding: 40px;
+  border: 1px solid #f0f0f0;
+
+  .login-header {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+
+  .login-form {
+    margin-top: 20px;
+  }
+
+  .ant-typography {
+    color: rgba(0, 0, 0, 0.85);
+
+    &.title {
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    &.subtitle {
+      color: rgba(0, 0, 0, 0.45);
+      font-weight: 400;
+      font-size: 14px;
+    }
+  }
+
+  .ant-form-item-label>label {
+    color: rgba(0, 0, 0, 0.85) !important;
+  }
+
+  .input-icon {
+    color: rgba(0, 0, 0, 0.25);
+  }
+
+  .ant-input {
+    background: #fff;
+    border: 1px solid #d9d9d9;
+    color: rgba(0, 0, 0, 0.85);
+    padding: 8px 12px;
+    border-radius: 6px;
+
+    &::placeholder {
+      color: rgba(0, 0, 0, 0.25);
+    }
+
+    &:hover,
+    &:focus {
+      border-color: #1677ff;
+      background: #fff;
+      box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.1);
+    }
+  }
+
+  .ant-input-password {
+    background: #fff;
+    border: 1px solid #d9d9d9;
+    border-radius: 6px;
+    padding: 8px 12px;
+
+    input {
+      background: transparent;
+      color: rgba(0, 0, 0, 0.85);
+
+      &::placeholder {
+        color: rgba(0, 0, 0, 0.25);
+      }
+    }
+
+    .ant-input-suffix {
+      color: rgba(0, 0, 0, 0.45);
+    }
+
+    &:hover,
+    &:focus-within {
+      border-color: #1677ff;
+      background: #fff;
+      box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.1);
+    }
+  }
+
+  .login-button {
+    width: 100%;
+    height: 40px;
+    background: #1677ff;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 500;
+    margin-top: 10px;
+    box-shadow: 0 2px 0 rgba(5, 145, 255, 0.1);
+
+    &:hover {
+      background: #4096ff;
+      transform: translateY(-1px);
+    }
+  }
+}

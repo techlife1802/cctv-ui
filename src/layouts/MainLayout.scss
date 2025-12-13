@@ -1,0 +1,80 @@
+.main-layout {
+    min-height: 100vh;
+    background: #b3c4d7;
+
+    .ant-layout-sider {
+        border-right: 1px solid #f0f0f0;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        overflow-y: auto;
+        z-index: 101;
+
+        .logo {
+            height: 64px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1677ff; // Updated to blue
+            font-weight: 700;
+            font-size: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            background: #fff;
+        }
+    }
+
+    .site-layout-header {
+        background: #fff;
+        padding: 0 24px;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        border-bottom: 1px solid #f0f0f0;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        width: 100%;
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            color: rgba(0, 0, 0, 0.85);
+
+            .ant-avatar {
+                background-color: #1677ff; // Updated to blue
+            }
+
+            &:hover {
+                color: #1677ff; // Updated to blue
+            }
+        }
+    }
+
+    .site-layout-content-wrapper {
+        margin: 24px 16px;
+        padding: 24px;
+        background: #fff;
+        border-radius: 8px;
+        height: calc(100vh - 112px); // 64px header + 48px vertical margins
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+}
+
+// Page Content Styles
+.page-content {
+    .page-title {
+        color: #1f1f1f;
+        margin-bottom: 8px;
+    }
+
+    .page-description {
+        color: #8c8c8c;
+        font-size: 16px;
+    }
+}

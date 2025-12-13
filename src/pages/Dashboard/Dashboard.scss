@@ -1,0 +1,203 @@
+.dashboard-page {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        position: sticky;
+        z-index: 10;
+        background: #eaeff5; // Matches Main Layout background
+        padding: 0 1rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        border-radius: 0.5rem;
+        flex: 0 0 auto; // Fixed height
+
+        .location-selector {
+            width: 200px;
+        }
+    }
+
+    .video-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        align-content: flex-start; // Ensure items don't stretch vertically if few
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 8px;
+        padding-bottom: 24px;
+
+        // Custom Scrollbar
+        &::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        &::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        &::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 3px;
+        }
+
+        &::-webkit-scrollbar-thumb:hover {
+            background: #bbb;
+        }
+    }
+
+    .camera-card {
+        // Flexbox 4-column math: 
+        // 100% width / 4 items = 25%
+        // Gap is 24px. 3 gaps per row = 72px total gap space.
+        // Distributed removal from each item: 72px / 4 = 18px.
+        width: calc(25% - 18px);
+
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+        cursor: pointer;
+        aspect-ratio: 16/9;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s, box-shadow 0.2s;
+        min-width: 0; // CRITICAL: Allows grid item to shrink below content size
+
+        &:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+            z-index: 1;
+
+            .camera-overlay {
+                opacity: 1;
+            }
+        }
+
+        img {
+            position: absolute; // Take out of flow to respect aspect-ratio
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.8;
+            transition: opacity 0.3s;
+        }
+
+        .camera-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, transparent 40%, transparent 60%, rgba(0, 0, 0, 0.8) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 12px;
+            color: #fff;
+            transition: opacity 0.3s;
+
+            .status-badge {
+                align-self: flex-start;
+                background: rgba(82, 196, 26, 0.8);
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 10px;
+                font-weight: bold;
+                text-transform: uppercase;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+
+                &.offline {
+                    background: rgba(255, 77, 79, 0.8);
+                }
+
+                .dot {
+                    width: 6px;
+                    height: 6px;
+                    background: #fff;
+                    border-radius: 50%;
+                    animation: pulse 1.5s infinite;
+                }
+            }
+
+            .camera-info {
+                h4 {
+                    margin: 0;
+                    font-size: 14px;
+                    font-weight: 500;
+                    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+                }
+
+                p {
+                    margin: 0;
+                    font-size: 11px;
+                    opacity: 0.8;
+                }
+            }
+        }
+    }
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.5;
+        transform: scale(0.8);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+// Fullscreen Modal overrides
+.fullscreen-video-modal {
+    top: 20px;
+
+    .ant-modal-content {
+        background: #000;
+        padding: 0;
+        overflow: hidden;
+        border-radius: 8px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .ant-modal-body {
+        padding: 0 !important;
+        height: 80vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #000;
+
+        // Ensure the wrapper div takes full height
+        >div {
+            width: 100%;
+            height: 100%;
+        }
+    }
+
+    .ant-modal-close {
+        top: 10px;
+        right: 10px;
+        color: rgba(255, 255, 255, 0.7);
+
+        &:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+    }
+}

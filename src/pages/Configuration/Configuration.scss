@@ -1,0 +1,26 @@
+.configuration-page {
+    .actions-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding: 16px;
+        background: #fff;
+        border-radius: 8px;
+        border: 1px solid #f0f0f0;
+
+        .search-input {
+            width: 300px;
+        }
+    }
+
+    .nvr-table {
+        background: #fff;
+        border-radius: 8px;
+        border: 1px solid #f0f0f0;
+
+        .ant-table-wrapper {
+            padding: 16px;
+        }
+    }
+}
