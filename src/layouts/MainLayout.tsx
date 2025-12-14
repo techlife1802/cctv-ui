@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Layout, Menu, Avatar, Dropdown, theme } from 'antd';
 import {
     DashboardOutlined,
-    VideoCameraOutlined,
+
     SettingOutlined,
     UserOutlined,
     LogoutOutlined
@@ -10,26 +10,17 @@ import {
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import './MainLayout.scss';
 
-const { Header, Sider, Content } = Layout;
+const { Header, Content } = Layout;
 
 const MainLayout: React.FC = () => {
-    const [collapsed, setCollapsed] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
-    const {
-        token: { colorBgContainer, borderRadiusLG },
-    } = theme.useToken();
 
     const menuItems = [
         {
             key: '/dashboard',
             icon: <DashboardOutlined />,
             label: 'Dashboard',
-        },
-        {
-            key: '/nvr',
-            icon: <VideoCameraOutlined />,
-            label: 'NVR',
         },
         {
             key: '/configuration',
@@ -57,29 +48,28 @@ const MainLayout: React.FC = () => {
 
     return (
         <Layout className="main-layout">
-            <Sider collapsible collapsed={collapsed} onCollapse={(value) => setCollapsed(value)} theme="light">
-                <div className="logo">CCTV UI</div>
-                <Menu
-                    theme="light"
-                    mode="inline"
-                    selectedKeys={[currentPath]}
-                    items={menuItems}
-                    onClick={handleMenuClick}
-                />
-            </Sider>
-            <Layout>
-                <Header className="site-layout-header">
-                    <Dropdown menu={userMenu} placement="bottomRight">
-                        <div className="user-info">
-                            <Avatar icon={<UserOutlined />} />
-                            <span>Admin User</span>
-                        </div>
-                    </Dropdown>
-                </Header>
-                <Content className="site-layout-content-wrapper">
-                    <Outlet />
-                </Content>
-            </Layout>
+            <Header className="site-layout-header">
+                <div className="header-left">
+                    <div className="logo">CCTV UI</div>
+                    <Menu
+                        theme="light"
+                        mode="horizontal"
+                        selectedKeys={[currentPath]}
+                        items={menuItems}
+                        onClick={handleMenuClick}
+                        className="top-menu"
+                    />
+                </div>
+                <Dropdown menu={userMenu} placement="bottomRight">
+                    <div className="user-info">
+                        <Avatar icon={<UserOutlined />} />
+                        <span>Admin User</span>
+                    </div>
+                </Dropdown>
+            </Header>
+            <Content className="site-layout-content-wrapper">
+                <Outlet />
+            </Content>
         </Layout>
     );
 };
