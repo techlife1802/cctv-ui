@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Typography, Table, Input, Button, Modal, Form, Space, message, Card } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Typography, Table, Input, Button, Modal, Form, Space, message, Select, Spin } from 'antd';
 import {
     PlusOutlined,
     SearchOutlined,
@@ -8,93 +8,78 @@ import {
     DeleteOutlined,
     EditOutlined
 } from '@ant-design/icons';
+import { NVR } from '../../types';
+import { nvrService } from '../../services/apiService';
 import './Configuration.scss';
 
 const { Title } = Typography;
 
-// Mock Initial Data
-const initialData = [
-    {
-        key: '1',
-        name: 'Main Road Camera 01',
-        location: 'Delhi',
-        ip: '192.168.1.100',
-        port: '8000',
-        username: 'admin',
-        password: 'password123',
-        status: 'online',
-    },
-    {
-        key: '2',
-        name: 'Main Road Camera 02',
-        location: 'Delhi',
-        ip: '192.168.1.101',
-        port: '8000',
-        username: 'admin',
-        password: 'securePass!',
-        status: 'online',
-    },
-    {
-        key: '3',
-        name: 'Tech Park Entrance',
-        location: 'Bangalore',
-        ip: '192.168.2.100',
-        port: '8000',
-        username: 'admin',
-        password: 'password789',
-        status: 'online',
-    },
-    {
-        key: '4',
-        name: 'Tech Park Lobby',
-        location: 'Bangalore',
-        ip: '192.168.2.101',
-        port: '8000',
-        username: 'admin',
-        password: 'password999',
-        status: 'offline',
-    },
-];
-
-const Configuration = () => {
-    const [data, setData] = useState(initialData);
+const Configuration: React.FC = () => {
+    const [data, setData] = useState<NVR[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [searchText, setSearchText] = useState('');
-    const [editingRecord, setEditingRecord] = useState(null);
+    const [editingRecord, setEditingRecord] = useState<NVR | null>(null);
+    const [loading, setLoading] = useState(false);
     const [form] = Form.useForm();
 
-    const handleSave = (values) => {
-        if (editingRecord) {
-            // Edit Logic
-            const newData = data.map(item =>
-                item.key === editingRecord.key
-                    ? { ...item, ...values, status: item.status } // Keep existing status
-                    : item
-            );
-            setData(newData);
-            message.success('NVR updated successfully');
-        } else {
-            // Add Logic
-            const newData = {
-                key: Date.now().toString(),
-                ...values,
-                status: 'offline', // Default status for new devices
-            };
-            setData([...data, newData]);
-            message.success('NVR added successfully');
+    const fetchNvrs = async () => {
+        try {
+            setLoading(true);
+            const nvrs = await nvrService.getAll();
+            setData(nvrs);
+        } catch (error) {
+            message.error('Failed to load NVRs');
+        } finally {
+            setLoading(false);
         }
-        resetModal();
     };
 
-    const handleEdit = (record) => {
+    useEffect(() => {
+        fetchNvrs();
+    }, []);
+
+    const handleSave = async (values: any) => {
+        try {
+            if (editingRecord) {
+                // Edit Logic
+                const updatedNvr = { ...editingRecord, ...values };
+                await nvrService.update(updatedNvr);
+
+                const newData = data.map(item =>
+                    item.key === editingRecord.key
+                        ? { ...item, ...values }
+                        : item
+                );
+                setData(newData);
+                message.success('NVR updated successfully');
+            } else {
+                // Add Logic
+                const newNvr = await nvrService.add(values);
+                setData([...data, newNvr]);
+                message.success('NVR added successfully');
+            }
+            resetModal();
+        } catch (error) {
+            message.error('Operation failed');
+        }
+    };
+
+    const handleEdit = (record: NVR) => {
         setEditingRecord(record);
         form.setFieldsValue(record);
         setIsModalOpen(true);
     };
 
-    const handleDelete = (key) => {
-        setData(data.filter(item => item.key !== key));
-        message.success('NVR deleted');
+    const handleDelete = async (key: string) => {
+        try {
+            // Assuming key corresponds to ID for this mock
+            // In real app, we might need ID. current mock has key=id so it's fine.
+            await nvrService.delete(key);
+            setData(data.filter(item => item.key !== key));
+            message.success('NVR deleted');
+        } catch (error) {
+            message.error('Failed to delete NVR');
+        }
     };
 
     const resetModal = () => {
@@ -114,19 +99,29 @@ const Configuration = () => {
             title: 'Location',
             dataIndex: 'location',
             key: 'location',
-            sorter: (a, b) => a.location.localeCompare(b.location),
+            sorter: (a: NVR, b: NVR) => a.location.localeCompare(b.location),
+        },
+        {
+            title: 'Type',
+            dataIndex: 'type',
+            key: 'type',
+            filters: [
+                { text: 'Hikvision', value: 'Hikvision' },
+                { text: 'CP Plus', value: 'CP Plus' },
+            ],
+            onFilter: (value: boolean | React.Key, record: NVR) => record.type.indexOf(value as string) === 0,
         },
         {
             title: 'NVR Name',
             dataIndex: 'name',
             key: 'name',
-            sorter: (a, b) => a.name.localeCompare(b.name),
+            sorter: (a: NVR, b: NVR) => a.name.localeCompare(b.name),
         },
         {
             title: 'Status',
             dataIndex: 'status',
             key: 'status',
-            render: (status) => (
+            render: (status: string) => (
                 <span style={{
                     color: status === 'online' ? '#52c41a' : '#ff4d4f',
                     display: 'flex',
@@ -164,7 +159,7 @@ const Configuration = () => {
             title: 'Password',
             dataIndex: 'password',
             key: 'password',
-            render: (text) => (
+            render: (text: string) => (
                 <Input.Password
                     value={text}
                     readOnly
@@ -176,7 +171,7 @@ const Configuration = () => {
         {
             title: 'Actions',
             key: 'actions',
-            render: (_, record) => (
+            render: (_: any, record: NVR) => (
                 <Space>
                     <Button
                         type="text"
@@ -187,12 +182,20 @@ const Configuration = () => {
                         type="text"
                         danger
                         icon={<DeleteOutlined />}
-                        onClick={() => handleDelete(record.key)}
+                        onClick={() => handleDelete(record.key as string)}
                     />
                 </Space>
             ),
         },
     ];
+
+    if (loading && data.length === 0) {
+        return (
+            <div className="page-content configuration-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                <Spin size="large" />
+            </div>
+        );
+    }
 
     return (
         <div className="page-content configuration-page">
@@ -242,6 +245,16 @@ const Configuration = () => {
                         rules={[{ required: true, message: 'Please enter Location' }]}
                     >
                         <Input placeholder="e.g. Building A" />
+                    </Form.Item>
+                    <Form.Item
+                        name="type"
+                        label="NVR Type"
+                        rules={[{ required: true, message: 'Please select NVR Type' }]}
+                    >
+                        <Select placeholder="Select NVR Type">
+                            <Select.Option value="Hikvision">Hikvision</Select.Option>
+                            <Select.Option value="CP Plus">CP Plus</Select.Option>
+                        </Select>
                     </Form.Item>
                     <Form.Item
                         name="ip"

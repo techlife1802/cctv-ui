@@ -3,7 +3,7 @@ import { Typography } from 'antd';
 
 const { Title } = Typography;
 
-const NVR = () => {
+const NVR: React.FC = () => {
     return (
         <div className="page-content">
             <Title level={2} className="page-title">NVR Management</Title>

@@ -1,51 +1,75 @@
 import React, { useState, useEffect } from 'react';
-import { Typography, Select, Modal, Badge, Empty } from 'antd';
-import { GlobalOutlined } from '@ant-design/icons';
+import { Typography, Select, Modal, Empty, Spin } from 'antd';
+import { GlobalOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { Camera } from '../../types';
+import { cameraService } from '../../services/apiService';
 import './Dashboard.scss';
 
 const { Title } = Typography;
 const { Option } = Select;
 
-// Mock Data Generator
-const generateCameras = (count) => {
-    const locations = ['Delhi', 'Bangalore', 'Mumbai', 'Chennai'];
-    const cameras = [];
-
-    for (let i = 1; i <= count; i++) {
-        const location = locations[Math.floor(Math.random() * locations.length)];
-        cameras.push({
-            id: i,
-            name: `${location} Cam ${i.toString().padStart(3, '0')}`,
-            location: location,
-            status: Math.random() > 0.1 ? 'online' : 'offline', // 90% online
-            thumbnail: `https://picsum.photos/400/225?random=${i}`, // Random placeholder
-        });
-    }
-    return cameras;
-};
-
-// Generate 120 cameras
-const allCameras = generateCameras(120);
-
-// Get unique locations
-const locations = [...new Set(allCameras.map(cam => cam.location))];
-
-const Dashboard = () => {
-    const [selectedLocation, setSelectedLocation] = useState('All');
-    const [filteredCameras, setFilteredCameras] = useState(allCameras);
-    const [videoModal, setVideoModal] = useState({ open: false, camera: null });
+const Dashboard: React.FC = () => {
+    const [allCameras, setAllCameras] = useState<Camera[]>([]);
+    const [filteredCameras, setFilteredCameras] = useState<Camera[]>([]);
+    const [selectedLocation, setSelectedLocation] = useState<string>('All');
+    const [selectedNvr, setSelectedNvr] = useState<string>('All');
+    const [loading, setLoading] = useState<boolean>(true);
+    const [videoModal, setVideoModal] = useState<{ open: boolean; camera: Camera | null }>({ open: false, camera: null });
 
     useEffect(() => {
-        if (selectedLocation === 'All') {
-            setFilteredCameras(allCameras);
-        } else {
-            setFilteredCameras(allCameras.filter(cam => cam.location === selectedLocation));
+        const fetchCameras = async () => {
+            try {
+                setLoading(true);
+                const data = await cameraService.getAll();
+                setAllCameras(data);
+                setFilteredCameras(data);
+            } catch (error) {
+                console.error("Failed to fetch cameras", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchCameras();
+    }, []);
+
+    useEffect(() => {
+        let result = allCameras;
+
+        if (selectedLocation !== 'All') {
+            result = result.filter(cam => cam.location === selectedLocation);
         }
+
+        if (selectedNvr !== 'All') {
+            result = result.filter(cam => cam.nvr === selectedNvr);
+        }
+
+        setFilteredCameras(result);
+    }, [selectedLocation, selectedNvr, allCameras]);
+
+    useEffect(() => {
+        setSelectedNvr('All');
     }, [selectedLocation]);
 
-    const handleCameraClick = (camera) => {
+    // Derived lists
+    const locations = [...new Set(allCameras.map(cam => cam.location))].sort();
+
+    const availableNvrs = [...new Set(
+        (selectedLocation === 'All' ? allCameras : allCameras.filter(cam => cam.location === selectedLocation))
+            .map(cam => cam.nvr)
+    )].sort();
+
+    const handleCameraClick = (camera: Camera) => {
         setVideoModal({ open: true, camera: camera });
     };
+
+    if (loading) {
+        return (
+            <div className="page-content dashboard-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                <Spin size="large" />
+            </div>
+        );
+    }
 
     return (
         <div className="page-content dashboard-page">
@@ -58,15 +82,30 @@ const Dashboard = () => {
                 </div>
 
                 <Select
-                    defaultValue="All"
+                    value={selectedLocation}
                     className="location-selector"
                     onChange={setSelectedLocation}
                     size="large"
                     suffixIcon={<GlobalOutlined />}
+                    style={{ minWidth: 200 }}
                 >
                     <Option value="All">All Locations</Option>
                     {locations.map(loc => (
                         <Option key={loc} value={loc}>{loc}</Option>
+                    ))}
+                </Select>
+
+                <Select
+                    value={selectedNvr}
+                    className="location-selector"
+                    style={{ marginLeft: 16, width: 250 }}
+                    onChange={setSelectedNvr}
+                    size="large"
+                    suffixIcon={<VideoCameraOutlined />}
+                >
+                    <Option value="All">All NVRs</Option>
+                    {availableNvrs.map(nvr => (
+                        <Option key={nvr} value={nvr}>{nvr}</Option>
                     ))}
                 </Select>
             </div>

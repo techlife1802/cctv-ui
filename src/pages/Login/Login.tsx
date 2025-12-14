@@ -2,26 +2,29 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Typography, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { authService } from '../../services/apiService';
+import { LoginRequest } from '../../types';
 import './Login.scss';
 
 const { Title, Text } = Typography;
 
-const Login = () => {
+const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const onFinish = (values) => {
+  const onFinish = async (values: LoginRequest) => {
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const response = await authService.login(values);
+      // Store token
+      localStorage.setItem('token', response.token);
+      message.success('Login successful!');
+      navigate('/dashboard');
+    } catch (error) {
+      message.error('Invalid credentials');
+    } finally {
       setLoading(false);
-      if (values.username === 'admin' && values.password === 'admin') {
-        message.success('Login successful!');
-        navigate('/dashboard');
-      } else {
-        message.error('Invalid credentials');
-      }
-    }, 1000);
+    }
   };
 
   return (

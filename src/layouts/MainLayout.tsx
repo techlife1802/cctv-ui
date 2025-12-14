@@ -12,7 +12,7 @@ import './MainLayout.scss';
 
 const { Header, Sider, Content } = Layout;
 
-const MainLayout = () => {
+const MainLayout: React.FC = () => {
     const [collapsed, setCollapsed] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
@@ -38,7 +38,7 @@ const MainLayout = () => {
         },
     ];
 
-    const handleMenuClick = ({ key }) => {
+    const handleMenuClick = ({ key }: { key: string }) => {
         navigate(key);
     };
 
