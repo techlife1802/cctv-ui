@@ -1,6 +1,6 @@
 export interface NVR {
     id: string;
-    key?: string; // For AntD table compatibility
+    key?: string;
     name: string;
     location: string;
     ip: string;

@@ -7,49 +7,32 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const authService = {
     login: async (credentials: LoginRequest): Promise<LoginResponse> => {
-        // Mock Login
-        await delay(500);
-        // Simulate Basic Auth check
-        const token = window.btoa(`${credentials.username}:${credentials.password}`);
-
-        if (credentials.username === 'admin' && credentials.password === 'admin') {
-            return {
-                user: { id: '1', username: 'admin', role: 'admin' },
-                token: `Basic ${token}`,
-            };
-        }
-        throw new Error('Invalid credentials');
+        const response = await client.post('/auth/login', credentials);
+        return response.data;
     },
 };
 
 export const nvrService = {
     getAll: async (): Promise<NVR[]> => {
-        // Mock GET /nvrs
-        await delay(500);
-        return [...mockNVRs];
+        const response = await client.get('/nvrs');
+        return response.data;
     },
     add: async (nvr: Omit<NVR, 'id' | 'key'>): Promise<NVR> => {
-        // Mock POST /nvrs
-        await delay(500);
-        const newNVR = { ...nvr, id: Date.now().toString(), key: Date.now().toString() };
-        return newNVR;
+        const response = await client.post('/nvrs', nvr);
+        return response.data;
     },
     update: async (nvr: NVR): Promise<NVR> => {
-        // Mock PUT /nvrs/:id
-        await delay(500);
-        return nvr;
+        const response = await client.put(`/nvrs/${nvr.id}`, nvr);
+        return response.data;
     },
     delete: async (id: string): Promise<void> => {
-        // Mock DELETE /nvrs/:id
-        await delay(500);
-        return;
+        await client.delete(`/nvrs/${id}`);
     }
 };
 
 export const cameraService = {
     getAll: async (): Promise<Camera[]> => {
-        // Mock GET /cameras
-        await delay(500);
-        return [...mockCameras];
+        const response = await client.get('/cameras');
+        return response.data;
     }
 };
