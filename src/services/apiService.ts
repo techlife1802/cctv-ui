@@ -17,6 +17,12 @@ export const nvrService = {
         const response = await client.get('/nvrs');
         return response.data;
     },
+    getLocations: async (): Promise<string[]> => {
+        const response = await client.get('/nvrs');
+        const nvrs: NVR[] = response.data;
+        const locations = [...new Set(nvrs.map(nvr => nvr.location))];
+        return locations.sort();
+    },
     add: async (nvr: Omit<NVR, 'id' | 'key'>): Promise<NVR> => {
         const response = await client.post('/nvrs', nvr);
         return response.data;
@@ -32,7 +38,12 @@ export const nvrService = {
 
 export const cameraService = {
     getAll: async (): Promise<Camera[]> => {
-        const response = await client.get('/cameras');
+        // Fallback to getting all streams if generic getAll is called
+        const response = await client.get('/stream/list?location=All&nvrName=All');
+        return response.data;
+    },
+    getStreams: async (location: string, nvrName: string = 'All'): Promise<Camera[]> => {
+        const response = await client.get(`/stream/list?location=${location}&nvrName=${nvrName}`);
         return response.data;
     }
 };

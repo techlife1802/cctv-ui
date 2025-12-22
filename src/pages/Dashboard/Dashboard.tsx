@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import Hls from 'hls.js';
 import { Typography, Select, Modal, Empty, Spin } from 'antd';
-import { GlobalOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { GlobalOutlined, VideoCameraOutlined, CloseOutlined, EyeOutlined } from '@ant-design/icons';
 import { Camera } from '../../types';
-import { cameraService } from '../../services/apiService';
+import { cameraService, nvrService } from '../../services/apiService';
+import CameraCard from '../../components/CameraCard';
 import './Dashboard.scss';
 
 const { Title } = Typography;
@@ -11,48 +13,61 @@ const { Option } = Select;
 const Dashboard: React.FC = () => {
     const [allCameras, setAllCameras] = useState<Camera[]>([]);
     const [filteredCameras, setFilteredCameras] = useState<Camera[]>([]);
-    const [selectedLocation, setSelectedLocation] = useState<string>('All');
+    const [locations, setLocations] = useState<string[]>([]);
+    const [selectedLocation, setSelectedLocation] = useState<string>('');
     const [selectedNvr, setSelectedNvr] = useState<string>('All');
     const [loading, setLoading] = useState<boolean>(true);
     const [videoModal, setVideoModal] = useState<{ open: boolean; camera: Camera | null }>({ open: false, camera: null });
+    const videoRef = useRef<HTMLVideoElement>(null);
 
     useEffect(() => {
-        const fetchCameras = async () => {
+        const fetchInitialData = async () => {
             try {
                 setLoading(true);
-                const data = await cameraService.getAll();
-                setAllCameras(data);
-                setFilteredCameras(data);
+                // Fetch locations from NVR API
+                const fetchedLocations = await nvrService.getLocations();
+                setLocations(fetchedLocations);
+
+                // Default to first location if available
+                const defaultLocation = fetchedLocations.length > 0 ? fetchedLocations[0] : 'All';
+                setSelectedLocation(defaultLocation);
+
+                // Fetch cameras for all locations to populate dropdown options
+                const allData = await cameraService.getStreams('All', 'All');
+                setAllCameras(allData);
+
+                // Fetch cameras for default location
+                const defaultData = await cameraService.getStreams(defaultLocation, 'All');
+                setFilteredCameras(defaultData);
             } catch (error) {
-                console.error("Failed to fetch cameras", error);
+                console.error("Failed to fetch initial data", error);
             } finally {
                 setLoading(false);
             }
         };
-
-        fetchCameras();
+        fetchInitialData();
     }, []);
 
     useEffect(() => {
-        let result = allCameras;
-
-        if (selectedLocation !== 'All') {
-            result = result.filter(cam => cam.location === selectedLocation);
-        }
-
-        if (selectedNvr !== 'All') {
-            result = result.filter(cam => cam.nvr === selectedNvr);
-        }
-
-        setFilteredCameras(result);
-    }, [selectedLocation, selectedNvr, allCameras]);
+        const fetchFilteredStreams = async () => {
+            try {
+                setLoading(true);
+                const streams = await cameraService.getStreams(selectedLocation, selectedNvr);
+                setFilteredCameras(streams);
+            } catch (error) {
+                console.error("Failed to fetch streams", error);
+                setFilteredCameras([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchFilteredStreams();
+    }, [selectedLocation, selectedNvr]);
 
     useEffect(() => {
         setSelectedNvr('All');
     }, [selectedLocation]);
 
-    // Derived lists
-    const locations = [...new Set(allCameras.map(cam => cam.location))].sort();
 
     const availableNvrs = [...new Set(
         (selectedLocation === 'All' ? allCameras : allCameras.filter(cam => cam.location === selectedLocation))
@@ -60,8 +75,31 @@ const Dashboard: React.FC = () => {
     )].sort();
 
     const handleCameraClick = (camera: Camera) => {
-        setVideoModal({ open: true, camera: camera });
+        setVideoModal({ open: true, camera });
     };
+
+    // HLS player effect
+    useEffect(() => {
+        if (videoModal.open && videoModal.camera?.streamUrl && videoRef.current) {
+            const video = videoRef.current;
+            const streamUrl = `http://localhost:8080${videoModal.camera.streamUrl}`;
+
+            if (Hls.isSupported()) {
+                const hls = new Hls();
+                hls.loadSource(streamUrl);
+                hls.attachMedia(video);
+                hls.startLoad();
+                video.play().catch(() => { });
+
+                return () => {
+                    hls.destroy();
+                };
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = streamUrl;
+                video.play().catch(() => { });
+            }
+        }
+    }, [videoModal]);
 
     if (loading) {
         return (
@@ -76,9 +114,7 @@ const Dashboard: React.FC = () => {
             <div className="dashboard-header">
                 <div>
                     <Title level={2} className="page-title">Live Monitoring</Title>
-                    <p className="page-description">
-                        {filteredCameras.length} Active Feeds
-                    </p>
+                    <p className="page-description">{filteredCameras.length} Active Feeds</p>
                 </div>
 
                 <Select
@@ -90,9 +126,7 @@ const Dashboard: React.FC = () => {
                     style={{ minWidth: 200 }}
                 >
                     <Option value="All">All Locations</Option>
-                    {locations.map(loc => (
-                        <Option key={loc} value={loc}>{loc}</Option>
-                    ))}
+                    {locations.map(loc => <Option key={loc} value={loc}>{loc}</Option>)}
                 </Select>
 
                 <Select
@@ -104,42 +138,30 @@ const Dashboard: React.FC = () => {
                     suffixIcon={<VideoCameraOutlined />}
                 >
                     <Option value="All">All NVRs</Option>
-                    {availableNvrs.map(nvr => (
-                        <Option key={nvr} value={nvr}>{nvr}</Option>
-                    ))}
+                    {availableNvrs.map(nvr => <Option key={nvr} value={nvr}>{nvr}</Option>)}
                 </Select>
             </div>
 
             <div className="video-grid">
-                {filteredCameras.map((camera) => (
-                    <div
+                {filteredCameras.map((camera, index) => (
+                    <CameraCard
                         key={camera.id}
-                        className="camera-card"
-                        onClick={() => handleCameraClick(camera)}
-                    >
-                        <img
-                            src={camera.thumbnail}
-                            alt={camera.name}
-                            loading="lazy"
-                        />
-                        <div className="camera-overlay">
-                            <div className={`status-badge ${camera.status}`}>
-                                <div className="dot"></div>
-                                {camera.status}
-                            </div>
-                            <div className="camera-info">
-                                <h4>{camera.name}</h4>
-                                <p>{camera.location}</p>
-                            </div>
-                        </div>
-                    </div>
+                        camera={camera}
+                        onClick={handleCameraClick}
+                        index={index}
+                    />
                 ))}
             </div>
 
             {filteredCameras.length === 0 && <Empty description="No cameras found" />}
 
             <Modal
-                title={videoModal.camera?.name}
+                title={
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <EyeOutlined style={{ fontSize: '20px', color: '#1890ff' }} />
+                        <span>{videoModal.camera?.name}</span>
+                    </div>
+                }
                 open={videoModal.open}
                 onCancel={() => setVideoModal({ ...videoModal, open: false })}
                 footer={null}
@@ -147,31 +169,22 @@ const Dashboard: React.FC = () => {
                 centered
                 className="fullscreen-video-modal"
                 styles={{ body: { padding: 0 } }}
+                closeIcon={<CloseOutlined style={{ fontSize: '20px', color: '#fff' }} />}
             >
-                {videoModal.camera && (
-                    <div style={{ position: 'relative', width: '100%', height: '100%', background: '#000' }}>
-                        <img
-                            src={videoModal.camera.thumbnail}
-                            alt={videoModal.camera.name}
-                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                        />
-                        <div style={{
-                            position: 'absolute',
-                            top: 20,
-                            left: 20,
-                            color: 'red',
-                            fontWeight: 'bold',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            background: 'rgba(0,0,0,0.5)',
-                            padding: '4px 12px',
-                            borderRadius: 4
-                        }}>
-                            <div style={{ width: 8, height: 8, background: 'red', borderRadius: '50%' }}></div>
-                            LIVE
-                        </div>
-                    </div>
+                {videoModal.camera && videoModal.camera.streamUrl ? (
+                    <video
+                        ref={videoRef}
+                        controls
+                        muted
+                        autoPlay
+                        style={{ width: '100%', height: '100%', background: '#000' }}
+                    />
+                ) : (
+                    <img
+                        src={videoModal.camera?.thumbnail}
+                        alt={videoModal.camera?.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    />
                 )}
             </Modal>
         </div>

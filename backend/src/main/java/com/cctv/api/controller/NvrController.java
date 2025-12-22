@@ -1,5 +1,6 @@
 package com.cctv.api.controller;
 
+import com.cctv.api.dto.NvrCameraStreamDto;
 import com.cctv.api.model.NVR;
 import com.cctv.api.service.NvrService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,12 @@ public class NvrController {
     public List<NVR> getAllNvrs() {
         log.info("Fetching all NVRs");
         return nvrService.getAllNvrs();
+    }
+
+    @GetMapping("/stream")
+    public List<NvrCameraStreamDto> getNvrStreamsByLocation(@RequestParam String location) {
+        log.info("Fetching NVR streams for location: {}", location);
+        return nvrService.getNvrCameraStreamsByLocation(location);
     }
 
     @PostMapping

@@ -18,6 +18,7 @@ export interface Camera {
     nvr: string;
     status: 'online' | 'offline';
     thumbnail: string;
+    streamUrl?: string; // Proxy URL for the stream
 }
 
 export interface User {

@@ -13,12 +13,13 @@
     "@types/react-dom": "^19.2.3",
     "antd": "^6.1.0",
     "axios": "^1.13.2",
+    "hls.js": "^1.6.15",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "react-player": "^3.4.0",
     "react-router-dom": "^7.10.1",
     "react-scripts": "5.0.1",
     "sass": "^1.96.0",
-    "typescript": "^5.9.3",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
@@ -44,5 +45,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "typescript": "^4.9.5"
   }
 }
