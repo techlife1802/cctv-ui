@@ -5,9 +5,9 @@
         align-items: center;
         margin-bottom: 24px;
         padding: 16px;
-        background: #fff;
+        background: var(--bg-card);
         border-radius: 8px;
-        border: 1px solid #f0f0f0;
+        border: 1px solid var(--border-color);
 
         .search-input {
             width: 300px;
@@ -15,9 +15,9 @@
     }
 
     .nvr-table {
-        background: #fff;
+        background: var(--bg-card);
         border-radius: 8px;
-        border: 1px solid #f0f0f0;
+        border: 1px solid var(--border-color);
 
         .ant-table-wrapper {
             padding: 16px;

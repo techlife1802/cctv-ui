@@ -91,6 +91,12 @@ const Dashboard: React.FC = () => {
         .filter(nvr => selectedLocation === 'All' || nvr.location === selectedLocation)
         .sort((a, b) => a.name.localeCompare(b.name));
 
+    const totalActiveFeeds = (selectedLocation && selectedNvr)
+        ? (selectedNvr === 'All'
+            ? groupedCameras.reduce((acc, group) => acc + group.cameras.length, 0)
+            : filteredCameras.length)
+        : 0;
+
     const handleCameraClick = (camera: Camera) => {
         setVideoModal({ open: true, camera });
     };
@@ -118,20 +124,12 @@ const Dashboard: React.FC = () => {
         }
     }, [videoModal]);
 
-    if (loading) {
-        return (
-            <div className="page-content dashboard-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                <Spin size="large" />
-            </div>
-        );
-    }
-
     return (
         <div className="page-content dashboard-page">
             <div className="dashboard-header">
                 <div>
                     <Title level={2} className="page-title">Live Monitoring</Title>
-                    <p className="page-description">{filteredCameras.length} Active Feeds</p>
+                    <p className="page-description">{totalActiveFeeds} Active Feeds</p>
                 </div>
 
                 <Select
@@ -164,67 +162,75 @@ const Dashboard: React.FC = () => {
                 </Select>
             </div>
 
-            {selectedNvr === 'All' ? (
-                <Collapse ghost className="nvr-collapse">
-                    {groupedCameras.map(group => (
-                        <Collapse.Panel
-                            key={group.nvrId}
-                            header={
-                                <div className="nvr-panel-header">
-                                    <div className="nvr-title">
-                                        <DatabaseOutlined />
-                                        <span>{group.nvrName}</span>
-                                        <Badge count={group.cameras.length} showZero color="#1890ff" />
-                                    </div>
-                                    <div className="nvr-badges">
-                                        <Tag color="cyan">{group.nvrIp}</Tag>
-                                        <Tag color="blue">{group.nvrType}</Tag>
-                                        <Tag color="geekblue">Channel {group.cameras.length}</Tag>
-                                    </div>
-                                </div>
-                            }
-                        >
-                            <div className="video-grid">
-                                {group.cameras.map((camera, index) => (
-                                    <CameraCard
-                                        key={camera.id}
-                                        camera={camera}
-                                        onClick={handleCameraClick}
-                                        index={index}
-                                    />
-                                ))}
-                            </div>
-                        </Collapse.Panel>
-                    ))}
-                </Collapse>
+            {loading ? (
+                <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <Spin size="large" />
+                </div>
             ) : (
-                <div className="video-grid">
-                    {filteredCameras.map((camera, index) => (
-                        <CameraCard
-                            key={camera.id}
-                            camera={camera}
-                            onClick={handleCameraClick}
-                            index={index}
-                        />
-                    ))}
-                </div>
-            )}
+                <>
+                    {selectedNvr === 'All' ? (
+                        <Collapse ghost className="nvr-collapse">
+                            {groupedCameras.map(group => (
+                                <Collapse.Panel
+                                    key={group.nvrId}
+                                    header={
+                                        <div className="nvr-panel-header">
+                                            <div className="nvr-title">
+                                                <DatabaseOutlined />
+                                                <span>{group.nvrName}</span>
+                                                <Badge count={group.cameras.length} showZero color="#1890ff" />
+                                            </div>
+                                            <div className="nvr-badges">
+                                                <Tag color="cyan">{group.nvrIp}</Tag>
+                                                <Tag color="blue">{group.nvrType}</Tag>
+                                                <Tag color="geekblue">Channel {group.cameras.length}</Tag>
+                                            </div>
+                                        </div>
+                                    }
+                                >
+                                    <div className="video-grid nested">
+                                        {group.cameras.map((camera, index) => (
+                                            <CameraCard
+                                                key={camera.id}
+                                                camera={camera}
+                                                onClick={handleCameraClick}
+                                                index={index}
+                                            />
+                                        ))}
+                                    </div>
+                                </Collapse.Panel>
+                            ))}
+                        </Collapse>
+                    ) : (
+                        <div className="video-grid">
+                            {filteredCameras.map((camera, index) => (
+                                <CameraCard
+                                    key={camera.id}
+                                    camera={camera}
+                                    onClick={handleCameraClick}
+                                    index={index}
+                                />
+                            ))}
+                        </div>
+                    )}
 
-            {(!selectedLocation || !selectedNvr) && (
-                <div style={{ textAlign: 'center', marginTop: '100px' }}>
-                    <Empty
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description={
-                            <Typography.Text type="secondary" style={{ fontSize: '18px' }}>
-                                Please select a <b>Location</b> and <b>NVR</b> to begin monitoring
-                            </Typography.Text>
-                        }
-                    />
-                </div>
-            )}
+                    {(!selectedLocation || !selectedNvr) && (
+                        <div style={{ textAlign: 'center', marginTop: '100px' }}>
+                            <Empty
+                                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                description={
+                                    <Typography.Text type="secondary" style={{ fontSize: '18px' }}>
+                                        Please select a <b>Location</b> and <b>NVR</b> to begin monitoring
+                                    </Typography.Text>
+                                }
+                            />
+                        </div>
+                    )}
 
-            {selectedLocation && selectedNvr && filteredCameras.length === 0 && groupedCameras.length === 0 && !loading && (
-                <Empty description="No cameras found for the selection" />
+                    {selectedLocation && selectedNvr && filteredCameras.length === 0 && groupedCameras.length === 0 && (
+                        <Empty description="No cameras found for the selection" />
+                    )}
+                </>
             )}
 
             <Modal

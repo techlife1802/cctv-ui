@@ -9,12 +9,19 @@ import Configuration from './pages/Configuration/Configuration';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
-function App() {
+import { ThemeProvider, useTheme } from './themeContext';
+import { theme as antTheme } from 'antd';
+
+const AppContent = () => {
+  const { theme } = useTheme();
+
   return (
     <ConfigProvider
       theme={{
+        algorithm: theme === 'dark' ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
         token: {
-          colorPrimary: '#1677ff',
+          colorPrimary: '#194ca3',
+          fontFamily: 'Outfit, sans-serif',
         },
       }}
     >
@@ -32,6 +39,14 @@ function App() {
         </Routes>
       </BrowserRouter>
     </ConfigProvider>
+  );
+};
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 

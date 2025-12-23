@@ -9,4 +9,6 @@ public class CameraStreamDto {
     private String status;
     private String streamUrl;
     private String thumbnail;
+    private String location;
+    private String nvr;
 }

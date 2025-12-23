@@ -52,7 +52,12 @@ public class NvrService {
 
     public java.util.List<NvrCameraStreamDto> getNvrCameraStreamsByLocation(String location) {
         log.debug("Fetching NVR streams for location: {}", location);
-        List<NVR> nvrs = nvrRepository.findByLocation(location);
+        List<NVR> nvrs;
+        if ("All".equalsIgnoreCase(location)) {
+            nvrs = nvrRepository.findAll();
+        } else {
+            nvrs = nvrRepository.findByLocation(location);
+        }
 
         return nvrs.stream().map(nvr -> {
             NvrCameraStreamDto nvrDto = new NvrCameraStreamDto();
@@ -73,6 +78,8 @@ public class NvrService {
 
                 String proxyUrl = String.format("/api/stream/%s/%d/index.m3u8", nvr.getId(), i);
                 camDto.setStreamUrl(proxyUrl);
+                camDto.setLocation(nvr.getLocation());
+                camDto.setNvr(nvr.getName());
                 cameraDtos.add(camDto);
             }
 
@@ -113,6 +120,8 @@ public class NvrService {
 
                         String proxyUrl = String.format("/api/stream/%s/%d/index.m3u8", nvr.getId(), i);
                         camDto.setStreamUrl(proxyUrl);
+                        camDto.setLocation(nvr.getLocation());
+                        camDto.setNvr(nvr.getName());
                         nvrCameras.add(camDto);
                     }
                     return nvrCameras.stream();

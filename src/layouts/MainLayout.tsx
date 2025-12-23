@@ -5,9 +5,12 @@ import {
 
     SettingOutlined,
     UserOutlined,
-    LogoutOutlined
+    LogoutOutlined,
+    BulbOutlined,
+    BulbFilled
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useTheme } from '../themeContext';
 import './MainLayout.scss';
 
 const { Header, Content } = Layout;
@@ -15,6 +18,7 @@ const { Header, Content } = Layout;
 const MainLayout: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { theme: currentTheme, toggleTheme } = useTheme();
 
     const menuItems = [
         {
@@ -50,9 +54,9 @@ const MainLayout: React.FC = () => {
         <Layout className="main-layout">
             <Header className="site-layout-header">
                 <div className="header-left">
-                    <div className="logo">CCTV UI</div>
+                    <div className="logo">CAMPUS WATCH</div>
                     <Menu
-                        theme="light"
+                        theme={currentTheme}
                         mode="horizontal"
                         selectedKeys={[currentPath]}
                         items={menuItems}
@@ -60,12 +64,17 @@ const MainLayout: React.FC = () => {
                         className="top-menu"
                     />
                 </div>
-                <Dropdown menu={userMenu} placement="bottomRight">
-                    <div className="user-info">
-                        <Avatar icon={<UserOutlined />} />
-                        <span>Admin User</span>
+                <div className="header-right">
+                    <div className="theme-toggle" onClick={toggleTheme}>
+                        {currentTheme === 'dark' ? <BulbFilled /> : <BulbOutlined />}
                     </div>
-                </Dropdown>
+                    <Dropdown menu={userMenu} placement="bottomRight">
+                        <div className="user-info">
+                            <Avatar icon={<UserOutlined />} />
+                            <span>Admin User</span>
+                        </div>
+                    </Dropdown>
+                </div>
             </Header>
             <Content className="site-layout-content-wrapper">
                 <Outlet />

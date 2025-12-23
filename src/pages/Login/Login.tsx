@@ -31,7 +31,7 @@ const Login: React.FC = () => {
     <div className="login-page">
       <div className="login-card">
         <div className="login-header">
-          <Title level={2} className="title">CCTV CONTROL</Title>
+          <Title level={2} className="title">CAMPUS WATCH</Title>
           <Text className="subtitle">Secure System Access</Text>
         </div>
 

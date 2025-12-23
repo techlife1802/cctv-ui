@@ -1,14 +1,14 @@
 .main-layout {
     min-height: 100vh;
-    background: #b3c4d7;
+    background: var(--bg-primary);
 
     .site-layout-header {
-        background: #fff;
+        background: var(--bg-secondary);
         padding: 0 24px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border-bottom: 1px solid #f0f0f0;
+        border-bottom: 1px solid var(--border-color);
         position: sticky;
         top: 0;
         z-index: 100;
@@ -24,7 +24,7 @@
             .logo {
                 font-size: 20px;
                 font-weight: 700;
-                color: #1677ff;
+                color: var(--accent-color);
                 margin-right: 48px;
                 white-space: nowrap;
             }
@@ -33,23 +33,44 @@
                 border-bottom: none;
                 flex: 1;
                 min-width: 0;
+                background: transparent;
             }
         }
 
-        .user-info {
+        .header-right {
             display: flex;
             align-items: center;
-            gap: 10px;
-            font-weight: 500;
-            cursor: pointer;
-            color: rgba(0, 0, 0, 0.85);
+            gap: 20px;
 
-            .ant-avatar {
-                background-color: #1677ff; // Updated to blue
+            .theme-toggle {
+                font-size: 20px;
+                cursor: pointer;
+                color: var(--text-primary);
+                display: flex;
+                align-items: center;
+                transition: transform 0.2s, color 0.2s;
+
+                &:hover {
+                    color: var(--accent-color);
+                    transform: scale(1.1);
+                }
             }
 
-            &:hover {
-                color: #1677ff; // Updated to blue
+            .user-info {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-weight: 500;
+                cursor: pointer;
+                color: var(--text-primary);
+
+                .ant-avatar {
+                    background-color: var(--accent-color);
+                }
+
+                &:hover {
+                    color: var(--accent-color);
+                }
             }
         }
     }
@@ -57,24 +78,25 @@
     .site-layout-content-wrapper {
         margin: 24px 16px;
         padding: 24px;
-        background: #fff;
+        background: var(--bg-secondary);
         border-radius: 8px;
-        height: calc(100vh - 112px); // 64px header + 48px vertical margins
+        height: calc(100vh - 112px);
         overflow: hidden;
         display: flex;
         flex-direction: column;
+        border: 1px solid var(--border-color);
     }
 }
 
 // Page Content Styles
 .page-content {
     .page-title {
-        color: #1f1f1f;
+        color: var(--text-primary);
         margin-bottom: 8px;
     }
 
     .page-description {
-        color: #8c8c8c;
+        color: var(--text-secondary);
         font-size: 16px;
     }
 }
