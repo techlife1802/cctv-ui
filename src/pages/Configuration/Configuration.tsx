@@ -46,7 +46,7 @@ const Configuration: React.FC = () => {
                 await nvrService.update(updatedNvr);
 
                 const newData = data.map(item =>
-                    item.key === editingRecord.key
+                    item.id === editingRecord.id
                         ? { ...item, ...values }
                         : item
                 );
@@ -70,12 +70,10 @@ const Configuration: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    const handleDelete = async (key: string) => {
+    const handleDelete = async (id: string) => {
         try {
-            // Assuming key corresponds to ID for this mock
-            // In real app, we might need ID. current mock has key=id so it's fine.
-            await nvrService.delete(key);
-            setData(data.filter(item => item.key !== key));
+            await nvrService.delete(id);
+            setData(data.filter(item => item.id !== id));
             message.success('NVR deleted');
         } catch (error) {
             message.error('Failed to delete NVR');
@@ -141,6 +139,12 @@ const Configuration: React.FC = () => {
             ),
         },
         {
+            title: 'Channels',
+            dataIndex: 'channels',
+            key: 'channels',
+            sorter: (a: NVR, b: NVR) => a.channels - b.channels,
+        },
+        {
             title: 'Static IP',
             dataIndex: 'ip',
             key: 'ip',
@@ -182,7 +186,7 @@ const Configuration: React.FC = () => {
                         type="text"
                         danger
                         icon={<DeleteOutlined />}
-                        onClick={() => handleDelete(record.key as string)}
+                        onClick={() => handleDelete(record.id)}
                     />
                 </Space>
             ),
@@ -218,7 +222,7 @@ const Configuration: React.FC = () => {
             </div>
 
             <div className="nvr-table">
-                <Table columns={columns} dataSource={filteredData} />
+                <Table rowKey="id" columns={columns} dataSource={filteredData} />
             </div>
 
             <Modal
@@ -286,6 +290,14 @@ const Configuration: React.FC = () => {
                         rules={[{ required: true, message: 'Please enter Password' }]}
                     >
                         <Input.Password />
+                    </Form.Item>
+                    <Form.Item
+                        name="channels"
+                        label="Number of Channels"
+                        initialValue={32}
+                        rules={[{ required: true, message: 'Please enter number of channels' }]}
+                    >
+                        <Input type="number" min={1} max={256} />
                     </Form.Item>
                     <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 0 }}>
                         <Space>

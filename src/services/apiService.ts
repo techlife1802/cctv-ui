@@ -1,9 +1,5 @@
 import client from '../api/client';
-import { Camera, NVR, LoginRequest, LoginResponse } from '../types';
-import { mockNVRs, mockCameras } from '../data/mockData';
-
-// Helper to simulate API delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+import { Camera, NVR, LoginRequest, LoginResponse, NvrGroup } from '../types';
 
 export const authService = {
     login: async (credentials: LoginRequest): Promise<LoginResponse> => {
@@ -33,17 +29,20 @@ export const nvrService = {
     },
     delete: async (id: string): Promise<void> => {
         await client.delete(`/nvrs/${id}`);
+    },
+    getGroupedStreams: async (location: string): Promise<NvrGroup[]> => {
+        const response = await client.get(`/nvrs/stream?location=${location}`);
+        return response.data;
     }
 };
 
 export const cameraService = {
     getAll: async (): Promise<Camera[]> => {
-        // Fallback to getting all streams if generic getAll is called
-        const response = await client.get('/stream/list?location=All&nvrName=All');
+        const response = await client.get('/stream/list?location=All&nvrId=All');
         return response.data;
     },
-    getStreams: async (location: string, nvrName: string = 'All'): Promise<Camera[]> => {
-        const response = await client.get(`/stream/list?location=${location}&nvrName=${nvrName}`);
+    getStreams: async (location: string, nvrId: string = 'All'): Promise<Camera[]> => {
+        const response = await client.get(`/stream/list?location=${location}&nvrId=${nvrId}`);
         return response.data;
     }
 };

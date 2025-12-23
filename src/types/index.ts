@@ -9,6 +9,7 @@ export interface NVR {
     password?: string;
     status: 'online' | 'offline';
     type: 'Hikvision' | 'CP Plus';
+    channels: number;
 }
 
 export interface Camera {
@@ -19,6 +20,15 @@ export interface Camera {
     status: 'online' | 'offline';
     thumbnail: string;
     streamUrl?: string; // Proxy URL for the stream
+}
+
+export interface NvrGroup {
+    nvrId: string;
+    nvrName: string;
+    nvrIp: string;
+    nvrStatus: string;
+    nvrType: string;
+    cameras: Camera[];
 }
 
 export interface User {

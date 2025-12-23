@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Hls from 'hls.js';
-import { Typography, Select, Modal, Empty, Spin } from 'antd';
-import { GlobalOutlined, VideoCameraOutlined, CloseOutlined, EyeOutlined } from '@ant-design/icons';
-import { Camera } from '../../types';
+import { Typography, Select, Modal, Empty, Spin, Collapse, Tag, Badge } from 'antd';
+import { GlobalOutlined, VideoCameraOutlined, CloseOutlined, EyeOutlined, DatabaseOutlined } from '@ant-design/icons';
+import { Camera, NVR, NvrGroup } from '../../types';
 import { cameraService, nvrService } from '../../services/apiService';
 import CameraCard from '../../components/CameraCard';
 import './Dashboard.scss';
@@ -13,9 +13,11 @@ const { Option } = Select;
 const Dashboard: React.FC = () => {
     const [allCameras, setAllCameras] = useState<Camera[]>([]);
     const [filteredCameras, setFilteredCameras] = useState<Camera[]>([]);
+    const [groupedCameras, setGroupedCameras] = useState<NvrGroup[]>([]);
     const [locations, setLocations] = useState<string[]>([]);
-    const [selectedLocation, setSelectedLocation] = useState<string>('');
-    const [selectedNvr, setSelectedNvr] = useState<string>('All');
+    const [allNvrs, setAllNvrs] = useState<NVR[]>([]);
+    const [selectedLocation, setSelectedLocation] = useState<string | undefined>(undefined);
+    const [selectedNvr, setSelectedNvr] = useState<string | undefined>(undefined);
     const [loading, setLoading] = useState<boolean>(true);
     const [videoModal, setVideoModal] = useState<{ open: boolean; camera: Camera | null }>({ open: false, camera: null });
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -28,17 +30,19 @@ const Dashboard: React.FC = () => {
                 const fetchedLocations = await nvrService.getLocations();
                 setLocations(fetchedLocations);
 
-                // Default to first location if available
-                const defaultLocation = fetchedLocations.length > 0 ? fetchedLocations[0] : 'All';
-                setSelectedLocation(defaultLocation);
+                // Default to first location if available (Actually, user wants Select Location by default)
+                // const defaultLocation = fetchedLocations.length > 0 ? fetchedLocations[0] : 'All';
+                // setSelectedLocation(defaultLocation);
+                setSelectedLocation(undefined);
 
-                // Fetch cameras for all locations to populate dropdown options
-                const allData = await cameraService.getStreams('All', 'All');
-                setAllCameras(allData);
+                // Fetch NVRs to populate dropdown
+                const fetchedNvrs = await nvrService.getAll();
+                setAllNvrs(fetchedNvrs);
 
-                // Fetch cameras for default location
-                const defaultData = await cameraService.getStreams(defaultLocation, 'All');
-                setFilteredCameras(defaultData);
+                // Don't fetch cameras automatically on load
+                // const defaultData = await cameraService.getStreams(defaultLocation, 'All');
+                // setFilteredCameras(defaultData);
+                setLoading(false);
             } catch (error) {
                 console.error("Failed to fetch initial data", error);
             } finally {
@@ -50,13 +54,27 @@ const Dashboard: React.FC = () => {
 
     useEffect(() => {
         const fetchFilteredStreams = async () => {
+            if (!selectedLocation || !selectedNvr) {
+                setFilteredCameras([]);
+                setGroupedCameras([]);
+                return;
+            }
+
             try {
                 setLoading(true);
-                const streams = await cameraService.getStreams(selectedLocation, selectedNvr);
-                setFilteredCameras(streams);
+                if (selectedNvr === 'All') {
+                    const grouped = await nvrService.getGroupedStreams(selectedLocation);
+                    setGroupedCameras(grouped);
+                    setFilteredCameras([]); // Clear individual cameras
+                } else {
+                    const streams = await cameraService.getStreams(selectedLocation, selectedNvr);
+                    setFilteredCameras(streams);
+                    setGroupedCameras([]); // Clear grouped cameras
+                }
             } catch (error) {
                 console.error("Failed to fetch streams", error);
                 setFilteredCameras([]);
+                setGroupedCameras([]);
             } finally {
                 setLoading(false);
             }
@@ -65,14 +83,13 @@ const Dashboard: React.FC = () => {
     }, [selectedLocation, selectedNvr]);
 
     useEffect(() => {
-        setSelectedNvr('All');
+        setSelectedNvr(undefined);
     }, [selectedLocation]);
 
 
-    const availableNvrs = [...new Set(
-        (selectedLocation === 'All' ? allCameras : allCameras.filter(cam => cam.location === selectedLocation))
-            .map(cam => cam.nvr)
-    )].sort();
+    const availableNvrs = allNvrs
+        .filter(nvr => selectedLocation === 'All' || nvr.location === selectedLocation)
+        .sort((a, b) => a.name.localeCompare(b.name));
 
     const handleCameraClick = (camera: Camera) => {
         setVideoModal({ open: true, camera });
@@ -124,6 +141,8 @@ const Dashboard: React.FC = () => {
                     size="large"
                     suffixIcon={<GlobalOutlined />}
                     style={{ minWidth: 200 }}
+                    placeholder="Select Location"
+                    allowClear
                 >
                     <Option value="All">All Locations</Option>
                     {locations.map(loc => <Option key={loc} value={loc}>{loc}</Option>)}
@@ -136,24 +155,77 @@ const Dashboard: React.FC = () => {
                     onChange={setSelectedNvr}
                     size="large"
                     suffixIcon={<VideoCameraOutlined />}
+                    placeholder="Select NVR"
+                    allowClear
+                    disabled={!selectedLocation}
                 >
                     <Option value="All">All NVRs</Option>
-                    {availableNvrs.map(nvr => <Option key={nvr} value={nvr}>{nvr}</Option>)}
+                    {availableNvrs.map(nvr => <Option key={nvr.id} value={nvr.id}>{nvr.name}</Option>)}
                 </Select>
             </div>
 
-            <div className="video-grid">
-                {filteredCameras.map((camera, index) => (
-                    <CameraCard
-                        key={camera.id}
-                        camera={camera}
-                        onClick={handleCameraClick}
-                        index={index}
-                    />
-                ))}
-            </div>
+            {selectedNvr === 'All' ? (
+                <Collapse ghost className="nvr-collapse">
+                    {groupedCameras.map(group => (
+                        <Collapse.Panel
+                            key={group.nvrId}
+                            header={
+                                <div className="nvr-panel-header">
+                                    <div className="nvr-title">
+                                        <DatabaseOutlined />
+                                        <span>{group.nvrName}</span>
+                                        <Badge count={group.cameras.length} showZero color="#1890ff" />
+                                    </div>
+                                    <div className="nvr-badges">
+                                        <Tag color="cyan">{group.nvrIp}</Tag>
+                                        <Tag color="blue">{group.nvrType}</Tag>
+                                        <Tag color="geekblue">Channel {group.cameras.length}</Tag>
+                                    </div>
+                                </div>
+                            }
+                        >
+                            <div className="video-grid">
+                                {group.cameras.map((camera, index) => (
+                                    <CameraCard
+                                        key={camera.id}
+                                        camera={camera}
+                                        onClick={handleCameraClick}
+                                        index={index}
+                                    />
+                                ))}
+                            </div>
+                        </Collapse.Panel>
+                    ))}
+                </Collapse>
+            ) : (
+                <div className="video-grid">
+                    {filteredCameras.map((camera, index) => (
+                        <CameraCard
+                            key={camera.id}
+                            camera={camera}
+                            onClick={handleCameraClick}
+                            index={index}
+                        />
+                    ))}
+                </div>
+            )}
 
-            {filteredCameras.length === 0 && <Empty description="No cameras found" />}
+            {(!selectedLocation || !selectedNvr) && (
+                <div style={{ textAlign: 'center', marginTop: '100px' }}>
+                    <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description={
+                            <Typography.Text type="secondary" style={{ fontSize: '18px' }}>
+                                Please select a <b>Location</b> and <b>NVR</b> to begin monitoring
+                            </Typography.Text>
+                        }
+                    />
+                </div>
+            )}
+
+            {selectedLocation && selectedNvr && filteredCameras.length === 0 && groupedCameras.length === 0 && !loading && (
+                <Empty description="No cameras found for the selection" />
+            )}
 
             <Modal
                 title={

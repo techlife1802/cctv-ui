@@ -41,6 +41,7 @@ public class NvrService {
         nvr.setPassword(nvrDetails.getPassword());
         nvr.setStatus(nvrDetails.getStatus());
         nvr.setType(nvrDetails.getType());
+        nvr.setChannels(nvrDetails.getChannels());
         return nvrRepository.save(nvr);
     }
 
@@ -70,8 +71,8 @@ public class NvrService {
                 camDto.setStatus("Online");
                 camDto.setThumbnail(null);
 
-                String streamUrl = generateStreamUrl(nvr, i);
-                camDto.setStreamUrl(streamUrl);
+                String proxyUrl = String.format("/api/stream/%s/%d/index.m3u8", nvr.getId(), i);
+                camDto.setStreamUrl(proxyUrl);
                 cameraDtos.add(camDto);
             }
 
@@ -84,8 +85,8 @@ public class NvrService {
         return nvrRepository.findById(id).orElseThrow(() -> new RuntimeException("NVR not found with id: " + id));
     }
 
-    public java.util.List<CameraStreamDto> getCameraStreams(String location, String nvrName) {
-        log.debug("Fetching camera streams for location: {} and NVR: {}", location, nvrName);
+    public java.util.List<CameraStreamDto> getCameraStreams(String location, String nvrId) {
+        log.debug("Fetching camera streams for location: {} and NVR ID: {}", location, nvrId);
         List<NVR> nvrs;
         if ("All".equalsIgnoreCase(location)) {
             nvrs = nvrRepository.findAll();
@@ -93,9 +94,9 @@ public class NvrService {
             nvrs = nvrRepository.findByLocation(location);
         }
 
-        if (nvrName != null && !nvrName.equalsIgnoreCase("All")) {
+        if (nvrId != null && !nvrId.equalsIgnoreCase("All")) {
             nvrs = nvrs.stream()
-                    .filter(n -> n.getName().equalsIgnoreCase(nvrName))
+                    .filter(n -> n.getId().equalsIgnoreCase(nvrId))
                     .toList();
         }
 

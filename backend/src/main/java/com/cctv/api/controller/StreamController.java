@@ -30,8 +30,8 @@ public class StreamController {
     @GetMapping("/list")
     public List<CameraStreamDto> getStreams(
             @RequestParam String location,
-            @RequestParam(required = false, defaultValue = "All") String nvrName) {
-        return nvrService.getCameraStreams(location, nvrName);
+            @RequestParam(required = false, defaultValue = "All") String nvrId) {
+        return nvrService.getCameraStreams(location, nvrId);
     }
 
     @GetMapping(value = "/{nvrId}/{channelId}/index.m3u8")
