@@ -49,7 +49,7 @@ public class StreamController {
 
         // Simple wait logic for first-time generation
         int retries = 0;
-        while (!Files.exists(playlistPath) && retries < 30) { // Wait up to 6 seconds approx
+        while (!Files.exists(playlistPath) && retries < 40) { // Wait up to 8 seconds approx
             try {
                 TimeUnit.MILLISECONDS.sleep(200);
             } catch (InterruptedException e) {
@@ -83,7 +83,8 @@ public class StreamController {
             @PathVariable int channelId,
             @PathVariable String segmentName) {
 
-        Path segmentPath = hlsService.getHlsSegmentPath(nvrId, channelId, segmentName + ".ts");
+        Path segmentPath = hlsService.getHlsPlaylistPath(nvrId, channelId).getParent()
+                .resolve(segmentName + ".ts");
 
         if (Files.exists(segmentPath)) {
             try {
