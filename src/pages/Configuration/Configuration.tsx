@@ -1,98 +1,156 @@
 import React, { useState, useEffect } from 'react';
-import { Typography, Table, Input, Button, Modal, Form, Space, message, Select, Spin } from 'antd';
+import { Typography, Table, Input, Button, Modal, Form, Space, message, Select, Spin, Collapse, Tag } from 'antd';
 import {
     PlusOutlined,
     SearchOutlined,
     EyeInvisibleOutlined,
     EyeTwoTone,
     DeleteOutlined,
-    EditOutlined
+    EditOutlined,
+    UserOutlined,
+    VideoCameraOutlined
 } from '@ant-design/icons';
-import { NVR } from '../../types';
-import { nvrService } from '../../services/apiService';
+import { NVR, User } from '../../types';
+import { nvrService, userService } from '../../services/apiService';
 import './Configuration.scss';
 
 const { Title } = Typography;
 
 const Configuration: React.FC = () => {
-    const [data, setData] = useState<NVR[]>([]);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [searchText, setSearchText] = useState('');
-    const [editingRecord, setEditingRecord] = useState<NVR | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [form] = Form.useForm();
+    const [nvrData, setNvrData] = useState<NVR[]>([]);
+    const [userData, setUserData] = useState<User[]>([]);
+    const [isNvrModalOpen, setIsNvrModalOpen] = useState(false);
+    const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+    const [nvrSearchText, setNvrSearchText] = useState('');
+    const [userSearchText, setUserSearchText] = useState('');
+    const [editingNvr, setEditingNvr] = useState<NVR | null>(null);
+    const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [loadingNvrs, setLoadingNvrs] = useState(false);
+    const [loadingUsers, setLoadingUsers] = useState(false);
+    const [nvrForm] = Form.useForm();
+    const [userForm] = Form.useForm();
 
     const fetchNvrs = async () => {
         try {
-            setLoading(true);
+            setLoadingNvrs(true);
             const nvrs = await nvrService.getAll();
-            setData(nvrs);
+            setNvrData(nvrs);
         } catch (error) {
             message.error('Failed to load NVRs');
         } finally {
-            setLoading(false);
+            setLoadingNvrs(false);
+        }
+    };
+
+    const fetchUsers = async () => {
+        try {
+            setLoadingUsers(true);
+            const users = await userService.getAll();
+            setUserData(users);
+        } catch (error) {
+            message.error('Failed to load Users');
+        } finally {
+            setLoadingUsers(false);
         }
     };
 
     useEffect(() => {
         fetchNvrs();
+        fetchUsers();
     }, []);
 
-    const handleSave = async (values: any) => {
+    const handleNvrSave = async (values: any) => {
         try {
-            if (editingRecord) {
-                // Edit Logic
-                const updatedNvr = { ...editingRecord, ...values };
+            if (editingNvr) {
+                const updatedNvr = { ...editingNvr, ...values };
                 await nvrService.update(updatedNvr);
-
-                const newData = data.map(item =>
-                    item.id === editingRecord.id
-                        ? { ...item, ...values }
-                        : item
-                );
-                setData(newData);
+                setNvrData(nvrData.map(item => item.id === editingNvr.id ? { ...item, ...values } : item));
                 message.success('NVR updated successfully');
             } else {
-                // Add Logic
                 const newNvr = await nvrService.add(values);
-                setData([...data, newNvr]);
+                setNvrData([...nvrData, newNvr]);
                 message.success('NVR added successfully');
             }
-            resetModal();
+            resetNvrModal();
         } catch (error) {
             message.error('Operation failed');
         }
     };
 
-    const handleEdit = (record: NVR) => {
-        setEditingRecord(record);
-        form.setFieldsValue(record);
-        setIsModalOpen(true);
+    const handleUserSave = async (values: any) => {
+        try {
+            if (editingUser) {
+                const updatedUser = { ...editingUser, ...values };
+                await userService.update(updatedUser);
+                setUserData(userData.map(item => item.id === editingUser.id ? { ...item, ...values } : item));
+                message.success('User updated successfully');
+            } else {
+                const newUser = await userService.add(values);
+                setUserData([...userData, newUser]);
+                message.success('User added successfully');
+            }
+            resetUserModal();
+        } catch (error) {
+            message.error('Operation failed');
+        }
     };
 
-    const handleDelete = async (id: string) => {
+    const handleNvrEdit = (record: NVR) => {
+        setEditingNvr(record);
+        nvrForm.setFieldsValue(record);
+        setIsNvrModalOpen(true);
+    };
+
+    const handleUserEdit = (record: User) => {
+        setEditingUser(record);
+        userForm.setFieldsValue(record);
+        setIsUserModalOpen(true);
+    };
+
+    const handleNvrDelete = async (id: string) => {
         try {
             await nvrService.delete(id);
-            setData(data.filter(item => item.id !== id));
+            setNvrData(nvrData.filter(item => item.id !== id));
             message.success('NVR deleted');
         } catch (error) {
             message.error('Failed to delete NVR');
         }
     };
 
-    const resetModal = () => {
-        setIsModalOpen(false);
-        setEditingRecord(null);
-        form.resetFields();
+    const handleUserDelete = async (id: string) => {
+        try {
+            await userService.delete(id);
+            setUserData(userData.filter(item => item.id !== id));
+            message.success('User deleted');
+        } catch (error) {
+            message.error('Failed to delete User');
+        }
     };
 
-    const filteredData = data.filter(item =>
-        item.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.location.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.ip.includes(searchText)
+    const resetNvrModal = () => {
+        setIsNvrModalOpen(false);
+        setEditingNvr(null);
+        nvrForm.resetFields();
+    };
+
+    const resetUserModal = () => {
+        setIsUserModalOpen(false);
+        setEditingUser(null);
+        userForm.resetFields();
+    };
+
+    const filteredNvrData = nvrData.filter(item =>
+        item.name.toLowerCase().includes(nvrSearchText.toLowerCase()) ||
+        item.location.toLowerCase().includes(nvrSearchText.toLowerCase()) ||
+        item.ip.includes(nvrSearchText)
     );
 
-    const columns = [
+    const filteredUserData = userData.filter(item =>
+        item.username.toLowerCase().includes(userSearchText.toLowerCase()) ||
+        item.role.toLowerCase().includes(userSearchText.toLowerCase())
+    );
+
+    const nvrColumns = [
         {
             title: 'Location',
             dataIndex: 'location',
@@ -107,36 +165,13 @@ const Configuration: React.FC = () => {
                 { text: 'Hikvision', value: 'Hikvision' },
                 { text: 'CP Plus', value: 'CP Plus' },
             ],
-            onFilter: (value: boolean | React.Key, record: NVR) => record.type.indexOf(value as string) === 0,
+            onFilter: (value: any, record: NVR) => record.type.indexOf(value as string) === 0,
         },
         {
             title: 'NVR Name',
             dataIndex: 'name',
             key: 'name',
             sorter: (a: NVR, b: NVR) => a.name.localeCompare(b.name),
-        },
-        {
-            title: 'Status',
-            dataIndex: 'status',
-            key: 'status',
-            render: (status: string) => (
-                <span style={{
-                    color: status === 'online' ? '#52c41a' : '#ff4d4f',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    textTransform: 'capitalize'
-                }}>
-                    <span style={{
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '50%',
-                        background: status === 'online' ? '#52c41a' : '#ff4d4f',
-                        boxShadow: status === 'online' ? '0 0 0 2px rgba(82, 196, 26, 0.2)' : 'none'
-                    }} />
-                    {status}
-                </span>
-            ),
         },
         {
             title: 'Channels',
@@ -148,11 +183,6 @@ const Configuration: React.FC = () => {
             title: 'Static IP',
             dataIndex: 'ip',
             key: 'ip',
-        },
-        {
-            title: 'Port',
-            dataIndex: 'port',
-            key: 'port',
         },
         {
             title: 'Username',
@@ -180,23 +210,66 @@ const Configuration: React.FC = () => {
                     <Button
                         type="text"
                         icon={<EditOutlined style={{ color: '#1677ff' }} />}
-                        onClick={() => handleEdit(record)}
+                        onClick={() => handleNvrEdit(record)}
                     />
                     <Button
                         type="text"
                         danger
                         icon={<DeleteOutlined />}
-                        onClick={() => handleDelete(record.id)}
+                        onClick={() => handleNvrDelete(record.id)}
                     />
                 </Space>
             ),
         },
     ];
 
-    if (loading && data.length === 0) {
+    const userColumns = [
+        {
+            title: 'Username',
+            dataIndex: 'username',
+            key: 'username',
+            sorter: (a: User, b: User) => a.username.localeCompare(b.username),
+        },
+        {
+            title: 'Role',
+            dataIndex: 'role',
+            key: 'role',
+            filters: [
+                { text: 'Admin', value: 'admin' },
+                { text: 'User', value: 'user' },
+            ],
+            onFilter: (value: any, record: User) => record.role === value,
+            render: (role: string) => (
+                <Tag color={role === 'admin' ? 'blue' : 'green'}>
+                    {role.toUpperCase()}
+                </Tag>
+            ),
+        },
+        {
+            title: 'Actions',
+            key: 'actions',
+            render: (_: any, record: User) => (
+                <Space>
+                    <Button
+                        type="text"
+                        icon={<EditOutlined style={{ color: '#1677ff' }} />}
+                        onClick={() => handleUserEdit(record)}
+                    />
+                    <Button
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => handleUserDelete(record.id)}
+                    />
+                </Space>
+            ),
+        },
+    ];
+
+    if ((loadingNvrs && nvrData.length === 0) || (loadingUsers && userData.length === 0)) {
         return (
-            <div className="page-content configuration-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                <Spin size="large" />
+            <div className="page-content configuration-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                <Spin size="large" tip="Loading configuration..." />
             </div>
         );
     }
@@ -205,36 +278,89 @@ const Configuration: React.FC = () => {
         <div className="page-content configuration-page">
             <Title level={2} className="page-title">Configuration</Title>
 
-            <div className="actions-bar">
-                <Input
-                    placeholder="Search NVR by Name, Location or IP"
-                    prefix={<SearchOutlined />}
-                    className="search-input"
-                    onChange={(e) => setSearchText(e.target.value)}
-                />
-                <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}
+            <Collapse accordion className="config-collapse">
+                <Collapse.Panel
+                    header={
+                        <Space>
+                            <VideoCameraOutlined />
+                            <span>NVR Devices</span>
+                        </Space>
+                    }
+                    key="nvr"
                 >
-                    Add NVR
-                </Button>
-            </div>
+                    <div className="actions-bar">
+                        <Input
+                            placeholder="Search NVR by Name, Location or IP"
+                            prefix={<SearchOutlined />}
+                            className="search-input"
+                            onChange={(e) => setNvrSearchText(e.target.value)}
+                        />
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={() => { setEditingNvr(null); setIsNvrModalOpen(true); }}
+                        >
+                            Add NVR
+                        </Button>
+                    </div>
 
-            <div className="nvr-table">
-                <Table rowKey="id" columns={columns} dataSource={filteredData} />
-            </div>
+                    <div className="nvr-table">
+                        <Table
+                            rowKey="id"
+                            columns={nvrColumns}
+                            dataSource={filteredNvrData}
+                            loading={loadingNvrs}
+                        />
+                    </div>
+                </Collapse.Panel>
 
+                <Collapse.Panel
+                    header={
+                        <Space>
+                            <UserOutlined />
+                            <span>User Management</span>
+                        </Space>
+                    }
+                    key="users"
+                >
+                    <div className="actions-bar">
+                        <Input
+                            placeholder="Search User by Username or Role"
+                            prefix={<SearchOutlined />}
+                            className="search-input"
+                            onChange={(e) => setUserSearchText(e.target.value)}
+                        />
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={() => { setEditingUser(null); setIsUserModalOpen(true); }}
+                        >
+                            Add User
+                        </Button>
+                    </div>
+
+                    <div className="user-table">
+                        <Table
+                            rowKey="id"
+                            columns={userColumns}
+                            dataSource={filteredUserData}
+                            loading={loadingUsers}
+                        />
+                    </div>
+                </Collapse.Panel>
+            </Collapse>
+
+            {/* NVR Modal */}
             <Modal
-                title={editingRecord ? "Edit NVR" : "Add New NVR"}
-                open={isModalOpen}
-                onCancel={resetModal}
+                title={editingNvr ? "Edit NVR" : "Add New NVR"}
+                open={isNvrModalOpen}
+                onCancel={resetNvrModal}
                 footer={null}
             >
                 <Form
-                    form={form}
+                    form={nvrForm}
                     layout="vertical"
-                    onFinish={handleSave}
+                    onFinish={handleNvrSave}
                 >
                     <Form.Item
                         name="name"
@@ -287,9 +413,9 @@ const Configuration: React.FC = () => {
                     <Form.Item
                         name="password"
                         label="Password"
-                        rules={[{ required: true, message: 'Please enter Password' }]}
+                        rules={[{ required: editingNvr ? false : true, message: 'Please enter Password' }]}
                     >
-                        <Input.Password />
+                        <Input.Password placeholder={editingNvr ? "Leave blank to keep current" : ""} />
                     </Form.Item>
                     <Form.Item
                         name="channels"
@@ -301,9 +427,57 @@ const Configuration: React.FC = () => {
                     </Form.Item>
                     <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 0 }}>
                         <Space>
-                            <Button onClick={resetModal}>Cancel</Button>
+                            <Button onClick={resetNvrModal}>Cancel</Button>
                             <Button type="primary" htmlType="submit">
-                                {editingRecord ? "Update Device" : "Add Device"}
+                                {editingNvr ? "Update Device" : "Add Device"}
+                            </Button>
+                        </Space>
+                    </Form.Item>
+                </Form>
+            </Modal>
+
+            {/* User Modal */}
+            <Modal
+                title={editingUser ? "Edit User" : "Add New User"}
+                open={isUserModalOpen}
+                onCancel={resetUserModal}
+                footer={null}
+            >
+                <Form
+                    form={userForm}
+                    layout="vertical"
+                    onFinish={handleUserSave}
+                >
+                    <Form.Item
+                        name="username"
+                        label="Username"
+                        rules={[{ required: true, message: 'Please enter username' }]}
+                    >
+                        <Input placeholder="e.g. atulrai" disabled={!!editingUser} />
+                    </Form.Item>
+                    <Form.Item
+                        name="password"
+                        label="Password"
+                        rules={[{ required: editingUser ? false : true, message: 'Please enter password' }]}
+                    >
+                        <Input.Password placeholder={editingUser ? "Leave blank to keep current" : ""} />
+                    </Form.Item>
+                    <Form.Item
+                        name="role"
+                        label="Role"
+                        initialValue="user"
+                        rules={[{ required: true, message: 'Please select role' }]}
+                    >
+                        <Select>
+                            <Select.Option value="admin">Admin</Select.Option>
+                            <Select.Option value="user">User</Select.Option>
+                        </Select>
+                    </Form.Item>
+                    <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 0 }}>
+                        <Space>
+                            <Button onClick={resetUserModal}>Cancel</Button>
+                            <Button type="primary" htmlType="submit">
+                                {editingUser ? "Update User" : "Add User"}
                             </Button>
                         </Space>
                     </Form.Item>

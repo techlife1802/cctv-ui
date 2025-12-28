@@ -31,7 +31,7 @@ public class HlsService {
     // Enable FFmpeg logging globally
     static {
         FFmpegLogCallback.set();
-        avutil.av_log_set_level(avutil.AV_LOG_INFO);
+        avutil.av_log_set_level(avutil.AV_LOG_ERROR);
     }
 
     public Path getHlsPlaylistPath(String nvrId, int channelId) {

@@ -1,5 +1,5 @@
 import client from '../api/client';
-import { Camera, NVR, LoginRequest, LoginResponse, NvrGroup } from '../types';
+import { Camera, NVR, LoginRequest, LoginResponse, NvrGroup, User } from '../types';
 
 export const authService = {
     login: async (credentials: LoginRequest): Promise<LoginResponse> => {
@@ -44,5 +44,23 @@ export const cameraService = {
     getStreams: async (location: string, nvrId: string = 'All'): Promise<Camera[]> => {
         const response = await client.get(`/stream/list?location=${location}&nvrId=${nvrId}`);
         return response.data;
+    }
+};
+
+export const userService = {
+    getAll: async (): Promise<User[]> => {
+        const response = await client.get('/users');
+        return response.data;
+    },
+    add: async (user: Omit<User, 'id'>): Promise<User> => {
+        const response = await client.post('/users', user);
+        return response.data;
+    },
+    update: async (user: User): Promise<User> => {
+        const response = await client.put(`/users/${user.id}`, user);
+        return response.data;
+    },
+    delete: async (id: string): Promise<void> => {
+        await client.delete(`/users/${id}`);
     }
 };

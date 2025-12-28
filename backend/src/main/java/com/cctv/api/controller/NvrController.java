@@ -32,18 +32,21 @@ public class NvrController {
     }
 
     @PostMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('admin')")
     public NVR createNvr(@RequestBody NVR nvr) {
         log.info("Creating new NVR: {}", nvr.getName());
         return nvrService.createNvr(nvr);
     }
 
     @PutMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('admin')")
     public NVR updateNvr(@PathVariable String id, @RequestBody NVR nvr) {
         log.info("Updating NVR with ID: {}", id);
         return nvrService.updateNvr(id, nvr);
     }
 
     @DeleteMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('admin')")
     public ResponseEntity<?> deleteNvr(@PathVariable String id) {
         log.info("Deleting NVR with ID: {}", id);
         nvrService.deleteNvr(id);

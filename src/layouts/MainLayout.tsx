@@ -20,18 +20,28 @@ const MainLayout: React.FC = () => {
     const location = useLocation();
     const { theme: currentTheme, toggleTheme } = useTheme();
 
-    const menuItems = [
+    const userJson = localStorage.getItem('user');
+    const user = userJson ? JSON.parse(userJson) : null;
+
+    const baseMenuItems = [
         {
             key: '/dashboard',
             icon: <DashboardOutlined />,
             label: 'Dashboard',
-        },
+        }
+    ];
+
+    const adminMenuItems = [
         {
             key: '/configuration',
             icon: <SettingOutlined />,
             label: 'Configuration',
         },
     ];
+
+    const menuItems = user?.role === 'admin'
+        ? [...baseMenuItems, ...adminMenuItems]
+        : baseMenuItems;
 
     const handleMenuClick = ({ key }: { key: string }) => {
         navigate(key);
@@ -43,7 +53,11 @@ const MainLayout: React.FC = () => {
                 key: 'logout',
                 label: 'Logout',
                 icon: <LogoutOutlined />,
-                onClick: () => navigate('/login'),
+                onClick: () => {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    navigate('/login');
+                },
             }
         ]
     };
@@ -71,7 +85,7 @@ const MainLayout: React.FC = () => {
                     <Dropdown menu={userMenu} placement="bottomRight">
                         <div className="user-info">
                             <Avatar icon={<UserOutlined />} />
-                            <span>Admin User</span>
+                            <span>{user?.username || 'User'}</span>
                         </div>
                     </Dropdown>
                 </div>

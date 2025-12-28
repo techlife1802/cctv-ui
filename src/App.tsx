@@ -33,7 +33,9 @@ const AppContent = () => {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="nvr" element={<NVR />} />
-              <Route path="configuration" element={<Configuration />} />
+              <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+                <Route path="configuration" element={<Configuration />} />
+              </Route>
             </Route>
           </Route>
         </Routes>

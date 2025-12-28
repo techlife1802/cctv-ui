@@ -153,7 +153,8 @@ public class NvrService {
             log.error("Error encoding credentials for RTSP URL", e);
         }
 
-        log.info("Generated Stream URL for NVR: {} (Channel {}): {}", nvr.getName(), channel, url);
+        String maskedUrl = url.replaceFirst(":[^@]+@", ":****@");
+        log.info("Generated Stream URL for NVR: {} (Channel {}): {}", nvr.getName(), channel, maskedUrl);
         return url;
     }
 }

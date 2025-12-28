@@ -31,7 +31,10 @@ public class StreamController {
     public List<CameraStreamDto> getStreams(
             @RequestParam String location,
             @RequestParam(required = false, defaultValue = "All") String nvrId) {
-        return nvrService.getCameraStreams(location, nvrId);
+        log.info("Requesting streams for location: {}, NVR ID: {}", location, nvrId);
+        List<CameraStreamDto> streams = nvrService.getCameraStreams(location, nvrId);
+        log.debug("Found {} streams", streams.size());
+        return streams;
     }
 
     @GetMapping(value = "/{nvrId}/{channelId}/index.m3u8")
@@ -39,6 +42,7 @@ public class StreamController {
             @PathVariable String nvrId,
             @PathVariable int channelId) {
 
+        log.debug("Playlist request for NVR: {}, Channel: {}", nvrId, channelId);
         hlsService.startStreamIfNotActive(nvrId, channelId);
 
         Path playlistPath = hlsService.getHlsPlaylistPath(nvrId, channelId);
@@ -62,10 +66,11 @@ public class StreamController {
                         .contentType(MediaType.parseMediaType("application/vnd.apple.mpegurl"))
                         .body(resource);
             } catch (MalformedURLException e) {
-                log.error("Error serving playlist", e);
+                log.error("Error serving playlist for {}_{}: {}", nvrId, channelId, e.getMessage());
             }
         }
 
+        log.warn("Playlist not found for {}_{} after retries", nvrId, channelId);
         return ResponseEntity.notFound().build();
     }
 

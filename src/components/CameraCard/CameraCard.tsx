@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { Camera } from '../../types';
+import { logger } from '../../utils/logger';
 
 interface CameraCardProps {
     camera: Camera;
@@ -56,27 +57,27 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, onClick, index = 0 }) =
                     setIsLoading(false);
                     setHasError(false);
                     video.play().catch((err) => {
-                        console.warn(`Autoplay failed for ${camera.name}:`, err);
+                        logger.warn(`Autoplay failed for ${camera.name}:`, err);
                     });
                 });
 
                 hls.on(Hls.Events.ERROR, (event, data) => {
                     if (data.fatal) {
-                        console.error(`HLS Error for ${camera.name}:`, data);
+                        logger.error(`HLS Error for ${camera.name}:`, data);
                         setHasError(true);
                         setIsLoading(false);
 
                         switch (data.type) {
                             case Hls.ErrorTypes.NETWORK_ERROR:
-                                console.log(`Network error for ${camera.name}, attempting recovery...`);
+                                logger.info(`Network error for ${camera.name}, attempting recovery...`);
                                 hls.startLoad();
                                 break;
                             case Hls.ErrorTypes.MEDIA_ERROR:
-                                console.log(`Media error for ${camera.name}, attempting recovery...`);
+                                logger.info(`Media error for ${camera.name}, attempting recovery...`);
                                 hls.recoverMediaError();
                                 break;
                             default:
-                                console.error(`Unrecoverable error for ${camera.name}`);
+                                logger.error(`Unrecoverable error for ${camera.name}`);
                                 break;
                         }
                     }

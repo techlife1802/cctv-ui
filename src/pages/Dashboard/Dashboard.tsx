@@ -5,6 +5,7 @@ import { GlobalOutlined, VideoCameraOutlined, CloseOutlined, EyeOutlined, Databa
 import { Camera, NVR, NvrGroup } from '../../types';
 import { cameraService, nvrService } from '../../services/apiService';
 import CameraCard from '../../components/CameraCard';
+import { logger } from '../../utils/logger';
 import './Dashboard.scss';
 
 const { Title } = Typography;
@@ -44,7 +45,7 @@ const Dashboard: React.FC = () => {
                 // setFilteredCameras(defaultData);
                 setLoading(false);
             } catch (error) {
-                console.error("Failed to fetch initial data", error);
+                logger.error("Failed to fetch initial data", error);
             } finally {
                 setLoading(false);
             }
@@ -72,7 +73,7 @@ const Dashboard: React.FC = () => {
                     setGroupedCameras([]); // Clear grouped cameras
                 }
             } catch (error) {
-                console.error("Failed to fetch streams", error);
+                logger.error("Failed to fetch streams", error);
                 setFilteredCameras([]);
                 setGroupedCameras([]);
             } finally {
