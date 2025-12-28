@@ -6,12 +6,13 @@ import { logger } from '../../utils/logger';
 interface CameraCardProps {
     camera: Camera;
     onClick: (camera: Camera) => void;
-    index?: number; // For staggered loading
+    index?: number;
 }
 
 const CameraCard: React.FC<CameraCardProps> = ({ camera, onClick, index = 0 }) => {
-    const videoRef = useRef<HTMLVideoElement>(null);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
     const hlsRef = useRef<Hls | null>(null);
+
     const [isLoading, setIsLoading] = useState(true);
     const [hasError, setHasError] = useState(false);
 
@@ -23,88 +24,94 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, onClick, index = 0 }) =
 
         const video = videoRef.current;
         const streamUrl = `http://localhost:8080${camera.streamUrl}`;
-
-        // Stagger initialization to avoid overwhelming backend
-        const initDelay = index * 300; // 300ms delay between each camera
+        const initDelay = index * 200;
 
         const timeoutId = setTimeout(() => {
-            if (Hls.isSupported()) {
-                // Clean up previous HLS instance if exists
-                if (hlsRef.current) {
-                    hlsRef.current.destroy();
-                }
+            // Cleanup any previous instance
+            if (hlsRef.current) {
+                hlsRef.current.destroy();
+                hlsRef.current = null;
+            }
 
+            if (Hls.isSupported()) {
                 const hls = new Hls({
-                    enableWorker: true,
-                    lowLatencyMode: true,
-                    backBufferLength: 90,
-                    maxBufferLength: 30,
-                    maxMaxBufferLength: 60,
-                    manifestLoadingTimeOut: 20000,
-                    manifestLoadingMaxRetry: 3,
-                    manifestLoadingRetryDelay: 1000,
-                    levelLoadingTimeOut: 20000,
-                    levelLoadingMaxRetry: 3,
-                    fragLoadingTimeOut: 20000,
-                    fragLoadingMaxRetry: 3,
+                    // LIVE LOW-LATENCY SETTINGS
+                    liveSyncDuration: 1,
+                    liveMaxLatencyDuration: 2,
+                    maxLiveSyncPlaybackRate: 1.5,
+
+                    // BUFFER CONTROL (CRITICAL)
+                    maxBufferLength: 3,
+                    maxMaxBufferLength: 5,
+                    backBufferLength: 0,
+
+                    // FAST FAILURE RECOVERY
+                    manifestLoadingMaxRetry: 2,
+                    levelLoadingMaxRetry: 2,
+                    fragLoadingMaxRetry: 2,
+
+                    enableWorker: true
                 });
 
                 hlsRef.current = hls;
+
                 hls.loadSource(streamUrl);
                 hls.attachMedia(video);
 
                 hls.on(Hls.Events.MANIFEST_PARSED, () => {
                     setIsLoading(false);
                     setHasError(false);
-                    video.play().catch((err) => {
-                        logger.warn(`Autoplay failed for ${camera.name}:`, err);
+
+                    // FORCE JUMP TO LIVE EDGE
+                    const liveEdge = hls.liveSyncPosition;
+                    if (liveEdge !== null && !isNaN(liveEdge)) {
+                        video.currentTime = liveEdge;
+                    }
+
+                    video.play().catch(err => {
+                        logger.warn(`Autoplay failed for ${camera.name}`, err);
                     });
                 });
 
-                hls.on(Hls.Events.ERROR, (event, data) => {
-                    if (data.fatal) {
-                        logger.error(`HLS Error for ${camera.name}:`, data);
-                        setHasError(true);
-                        setIsLoading(false);
+                hls.on(Hls.Events.ERROR, (_, data) => {
+                    if (!data.fatal) return;
 
-                        switch (data.type) {
-                            case Hls.ErrorTypes.NETWORK_ERROR:
-                                logger.info(`Network error for ${camera.name}, attempting recovery...`);
-                                hls.startLoad();
-                                break;
-                            case Hls.ErrorTypes.MEDIA_ERROR:
-                                logger.info(`Media error for ${camera.name}, attempting recovery...`);
-                                hls.recoverMediaError();
-                                break;
-                            default:
-                                logger.error(`Unrecoverable error for ${camera.name}`);
-                                break;
-                        }
+                    logger.error(`HLS error for ${camera.name}`, data);
+                    setHasError(true);
+                    setIsLoading(false);
+
+                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                        hls.startLoad();
+                    } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                        hls.recoverMediaError();
+                    } else {
+                        hls.destroy();
                     }
                 });
 
-                hls.on(Hls.Events.FRAG_LOADED, () => {
-                    if (hasError) {
-                        setHasError(false);
+                // Auto-resync if player stalls
+                hls.on(Hls.Events.ERROR, (_, data) => {
+                    if (!data.fatal) return;
+
+                    if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                        hls.recoverMediaError();
+                    } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                        hls.startLoad();
                     }
                 });
 
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                // Native HLS support (Safari)
+                // Safari native HLS
                 video.src = streamUrl;
-                video.addEventListener('loadedmetadata', () => {
-                    setIsLoading(false);
-                    setHasError(false);
-                });
-                video.addEventListener('error', () => {
-                    setHasError(true);
-                    setIsLoading(false);
-                });
                 video.play().catch(() => { });
+                setIsLoading(false);
+            } else {
+                setHasError(true);
+                setIsLoading(false);
             }
+
         }, initDelay);
 
-        // Cleanup on unmount
         return () => {
             clearTimeout(timeoutId);
             if (hlsRef.current) {
@@ -112,7 +119,7 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, onClick, index = 0 }) =
                 hlsRef.current = null;
             }
         };
-    }, [camera.streamUrl, camera.name, index, hasError]);
+    }, [camera.streamUrl, index]);
 
     return (
         <div className="camera-card" onClick={() => onClick(camera)}>
@@ -123,6 +130,7 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, onClick, index = 0 }) =
                         muted
                         autoPlay
                         playsInline
+                        preload="metadata"
                         style={{
                             width: '100%',
                             height: '100%',
@@ -131,6 +139,7 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, onClick, index = 0 }) =
                             display: hasError ? 'none' : 'block'
                         }}
                     />
+
                     {isLoading && (
                         <div style={{
                             position: 'absolute',
@@ -138,27 +147,22 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, onClick, index = 0 }) =
                             left: '50%',
                             transform: 'translate(-50%, -50%)',
                             color: '#fff',
-                            fontSize: '14px',
-                            textAlign: 'center'
+                            fontSize: '14px'
                         }}>
                             Loading...
                         </div>
                     )}
+
                     {hasError && (
                         <div style={{
                             position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
+                            inset: 0,
                             background: '#000',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             color: '#ff4d4f',
-                            fontSize: '12px',
-                            textAlign: 'center',
-                            padding: '10px'
+                            fontSize: '12px'
                         }}>
                             Stream unavailable
                         </div>
@@ -167,9 +171,10 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, onClick, index = 0 }) =
             ) : (
                 <img src={camera.thumbnail} alt={camera.name} loading="lazy" />
             )}
+
             <div className="camera-overlay">
                 <div className={`status-badge ${camera.status}`}>
-                    <div className="dot"></div>
+                    <div className="dot" />
                     {camera.status}
                 </div>
                 <div className="camera-info">

@@ -139,6 +139,10 @@ public class HlsService {
                 grabber = new org.bytedeco.javacv.FFmpegFrameGrabber(rtspUrl);
                 grabber.setOption("rtsp_transport", "tcp");
                 grabber.setOption("stimeout", "5000000"); // 5 second timeout
+                grabber.setOption("fflags", "nobuffer");
+                grabber.setOption("flags", "low_delay");
+                grabber.setOption("probesize", "32");
+                grabber.setOption("analyzeduration", "1000000"); // 1 second
 
                 log.info("[{}] Starting frame grabber...", streamId);
                 grabber.start();
@@ -161,15 +165,16 @@ public class HlsService {
                 // H.264 encoding options
                 recorder.setVideoOption("preset", "ultrafast");
                 recorder.setVideoOption("tune", "zerolatency");
-                recorder.setVideoOption("g", "50"); // GOP size
+                int gopSize = (int) Math.max(2, grabber.getFrameRate() * 1); // 1 keyframe per second
+                recorder.setVideoOption("g", String.valueOf(gopSize));
                 recorder.setVideoOption("sc_threshold", "0");
                 recorder.setVideoOption("maxrate", "800k");
                 recorder.setVideoOption("bufsize", "1600k");
 
                 // HLS specific options
-                recorder.setOption("hls_time", "2");
+                recorder.setOption("hls_time", "1"); // 1 second segments
                 recorder.setOption("hls_list_size", "5");
-                recorder.setOption("hls_flags", "delete_segments+independent_segments");
+                recorder.setOption("hls_flags", "delete_segments+independent_segments+discont_start+omit_endlist");
                 recorder.setOption("hls_segment_type", "mpegts");
                 recorder.setOption("hls_segment_filename", outputDir + File.separator + "segment_%03d.ts");
                 recorder.setOption("start_number", "0");
@@ -195,13 +200,23 @@ public class HlsService {
 
                         // Only process video frames
                         if (frame.image != null) {
+                            // Synchronize timestamps
+                            if (frameCount == 0) {
+                                recorder.setTimestamp(grabber.getTimestamp());
+                            } else {
+                                // Some streams have inconsistent timestamps, ensure monotonicity
+                                long timestamp = Math.max(recorder.getTimestamp() + 1, grabber.getTimestamp());
+                                recorder.setTimestamp(timestamp);
+                            }
+
                             recorder.record(frame);
                             frameCount++;
 
-                            // Log progress every 5 seconds
+                            // Log progress every 10 seconds to reduce log noise
                             long currentTime = System.currentTimeMillis();
-                            if (currentTime - lastLogTime > 5000) {
-                                log.info("[{}] Processed {} frames", streamId, frameCount);
+                            if (currentTime - lastLogTime > 10000) {
+                                log.debug("[{}] Processed {} frames. Current timestamp: {}", streamId, frameCount,
+                                        grabber.getTimestamp());
                                 lastLogTime = currentTime;
                             }
                         }

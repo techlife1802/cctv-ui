@@ -64,6 +64,9 @@ public class StreamController {
                 Resource resource = new UrlResource(playlistPath.toUri());
                 return ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType("application/vnd.apple.mpegurl"))
+                        .header("Cache-Control", "no-cache, no-store, must-revalidate")
+                        .header("Pragma", "no-cache")
+                        .header("Expires", "0")
                         .body(resource);
             } catch (MalformedURLException e) {
                 log.error("Error serving playlist for {}_{}: {}", nvrId, channelId, e.getMessage());
