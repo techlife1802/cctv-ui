@@ -23,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @RestController
 @RequestMapping("/api/stream")
-@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class StreamController {
 
@@ -79,7 +78,7 @@ public class StreamController {
 
         if (Files.exists(playlistPath)) {
             try {
-                Resource resource = new UrlResource(playlistPath.toUri());
+                Resource resource = new UrlResource(java.util.Objects.requireNonNull(playlistPath.toUri()));
                 return ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType("application/vnd.apple.mpegurl"))
                         .header("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -106,7 +105,7 @@ public class StreamController {
 
         if (Files.exists(segmentPath)) {
             try {
-                Resource resource = new UrlResource(segmentPath.toUri());
+                Resource resource = new UrlResource(java.util.Objects.requireNonNull(segmentPath.toUri()));
                 return ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType("video/mp2t"))
                         .body(resource);

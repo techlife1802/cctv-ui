@@ -1,6 +1,8 @@
 package com.cctv.api.service;
 
 import com.cctv.api.model.NVR;
+import com.cctv.api.model.NvrType;
+import com.cctv.api.constant.AppConstants;
 import com.cctv.api.dto.NvrCameraStreamDto;
 import com.cctv.api.dto.CameraStreamDto;
 import com.cctv.api.repository.NvrRepository;
@@ -52,7 +54,7 @@ public class NvrService {
     public java.util.List<NvrCameraStreamDto> getNvrCameraStreamsByLocation(String location) {
         log.debug("Fetching NVR streams for location: {}", location);
         List<NVR> nvrs;
-        if ("All".equalsIgnoreCase(location)) {
+        if (AppConstants.ALL_LOCATION.equalsIgnoreCase(location)) {
             nvrs = nvrRepository.findAll();
         } else {
             nvrs = nvrRepository.findByLocation(location);
@@ -74,7 +76,7 @@ public class NvrService {
                 camDto.setStatus("Online");
                 camDto.setThumbnail(null);
 
-                String proxyUrl = String.format("/api/stream/%s/%d/index.m3u8", nvr.getId(), i);
+                String proxyUrl = String.format("/api/stream/%s/%d/%s", nvr.getId(), i, AppConstants.HLS_PLAYLIST_NAME);
                 camDto.setStreamUrl(proxyUrl);
                 camDto.setLocation(nvr.getLocation());
                 camDto.setNvr(nvr.getName());
@@ -94,13 +96,13 @@ public class NvrService {
     public java.util.List<CameraStreamDto> getCameraStreams(String location, String nvrId) {
         log.debug("Fetching camera streams for location: {} and NVR ID: {}", location, nvrId);
         List<NVR> nvrs;
-        if ("All".equalsIgnoreCase(location)) {
+        if (AppConstants.ALL_LOCATION.equalsIgnoreCase(location)) {
             nvrs = nvrRepository.findAll();
         } else {
             nvrs = nvrRepository.findByLocation(location);
         }
 
-        if (nvrId != null && !nvrId.equalsIgnoreCase("All")) {
+        if (nvrId != null && !nvrId.equalsIgnoreCase(AppConstants.ALL_NVR)) {
             nvrs = nvrs.stream()
                     .filter(n -> n.getId().equalsIgnoreCase(nvrId))
                     .toList();
@@ -117,7 +119,8 @@ public class NvrService {
                         camDto.setStatus("Online");
                         camDto.setThumbnail(null);
 
-                        String proxyUrl = String.format("/api/stream/%s/%d/index.m3u8", nvr.getId(), i);
+                        String proxyUrl = String.format("/api/stream/%s/%d/%s", nvr.getId(), i,
+                                AppConstants.HLS_PLAYLIST_NAME);
                         camDto.setStreamUrl(proxyUrl);
                         camDto.setLocation(nvr.getLocation());
                         camDto.setNvr(nvr.getName());
@@ -130,18 +133,19 @@ public class NvrService {
 
     public String generateStreamUrl(NVR nvr, int channel) {
         String url = "";
-        String port = (nvr.getPort() != null && !nvr.getPort().isEmpty()) ? nvr.getPort() : "554";
+        String port = (nvr.getPort() != null && !nvr.getPort().isEmpty()) ? nvr.getPort()
+                : AppConstants.DEFAULT_RTSP_PORT;
 
         try {
 
-            if (nvr.getType() != null) {
-                String type = nvr.getType().toLowerCase();
-                if (type.contains("hikvision")) {
+            NvrType type = NvrType.fromString(nvr.getType());
+            if (type != null) {
+                if (type == NvrType.HIKVISION) {
                     // RTSP format for Hikvision:
                     // rtsp://user:password@ip:port/Streaming/Channels/101
                     url = String.format("rtsp://%s:%s@%s:%s/Streaming/Channels/%d01",
                             nvr.getUsername(), nvr.getPassword(), nvr.getIp(), port, channel);
-                } else if (type.contains("cp plus") || type.contains("cpplus")) {
+                } else if (type == NvrType.CP_PLUS) {
                     // RTSP format for CP Plus:
                     // rtsp://user:password@ip:port/cam/realmonitor?channel=1&subtype=0
                     url = String.format("rtsp://%s:%s@%s:%s/cam/realmonitor?channel=%d&subtype=0",

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { Camera } from '../../types';
 import { logger } from '../../utils/logger';
+import { BASE_URL } from '../../api/client';
 
 interface CameraCardProps {
     camera: Camera;
@@ -23,7 +24,7 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, onClick, index = 0 }) =
         }
 
         const video = videoRef.current;
-        const streamUrl = `http://localhost:8080${camera.streamUrl}`;
+        const streamUrl = `${BASE_URL}${camera.streamUrl}`;
         const initDelay = index * 200;
 
         const timeoutId = setTimeout(() => {

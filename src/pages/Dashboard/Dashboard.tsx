@@ -4,6 +4,8 @@ import { Typography, Select, Modal, Empty, Spin, Collapse, Tag, Badge } from 'an
 import { GlobalOutlined, VideoCameraOutlined, CloseOutlined, EyeOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { Camera, NVR, NvrGroup } from '../../types';
 import { cameraService, nvrService } from '../../services/apiService';
+import { BASE_URL } from '../../api/client';
+import { APP_CONFIG } from '../../constants';
 import CameraCard from '../../components/CameraCard';
 import { logger } from '../../utils/logger';
 import './Dashboard.scss';
@@ -41,7 +43,7 @@ const Dashboard: React.FC = () => {
                 setAllNvrs(fetchedNvrs);
 
                 // Don't fetch cameras automatically on load
-                // const defaultData = await cameraService.getStreams(defaultLocation, 'All');
+                const defaultData = await cameraService.getStreams(selectedLocation || APP_CONFIG.ALL_FILTER, APP_CONFIG.ALL_FILTER);
                 // setFilteredCameras(defaultData);
                 setLoading(false);
             } catch (error) {
@@ -106,7 +108,7 @@ const Dashboard: React.FC = () => {
     useEffect(() => {
         if (videoModal.open && videoModal.camera?.streamUrl && videoRef.current) {
             const video = videoRef.current;
-            const streamUrl = `http://localhost:8080${videoModal.camera.streamUrl}`;
+            const streamUrl = `${BASE_URL}${videoModal.camera.streamUrl}`;
 
             if (Hls.isSupported()) {
                 const hls = new Hls();
@@ -143,7 +145,7 @@ const Dashboard: React.FC = () => {
                         placeholder="Select Location"
                         allowClear
                     >
-                        <Option value="All">All Locations</Option>
+                        <Option value={APP_CONFIG.ALL_FILTER}>All Locations</Option>
                         {locations.map(loc => <Option key={loc} value={loc}>{loc}</Option>)}
                     </Select>
 
@@ -157,7 +159,7 @@ const Dashboard: React.FC = () => {
                         allowClear
                         disabled={!selectedLocation}
                     >
-                        <Option value="All">All NVRs</Option>
+                        <Option value={APP_CONFIG.ALL_FILTER}>All NVRs</Option>
                         {availableNvrs.map(nvr => <Option key={nvr.id} value={nvr.id}>{nvr.name}</Option>)}
                     </Select>
                 </div>

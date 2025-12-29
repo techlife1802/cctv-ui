@@ -1,3 +1,5 @@
+import { CAM_STATUS, NVR_TYPE, USER_ROLE } from '../constants';
+
 export interface NVR {
     id: string;
     key?: string;
@@ -7,8 +9,8 @@ export interface NVR {
     port: string;
     username: string;
     password?: string;
-    status: 'online' | 'offline';
-    type: 'Hikvision' | 'CP Plus';
+    status: CAM_STATUS;
+    type: NVR_TYPE;
     channels: number;
 }
 
@@ -17,9 +19,9 @@ export interface Camera {
     name: string;
     location: string;
     nvr: string;
-    status: 'online' | 'offline';
+    status: CAM_STATUS;
     thumbnail: string;
-    streamUrl?: string; // Proxy URL for the stream
+    streamUrl?: string;
 }
 
 export interface NvrGroup {
@@ -35,7 +37,7 @@ export interface User {
     id: string;
     username: string;
     password?: string;
-    role: 'admin' | 'user';
+    role: USER_ROLE;
     token?: string;
 }
 

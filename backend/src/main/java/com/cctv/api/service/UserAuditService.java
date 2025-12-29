@@ -1,5 +1,6 @@
 package com.cctv.api.service;
 
+import com.cctv.api.model.AuditAction;
 import com.cctv.api.model.UserAudit;
 import com.cctv.api.repository.UserAuditRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,7 @@ public class UserAuditService {
 
         UserAudit audit = new UserAudit();
         audit.setUsername(username);
-        audit.setAction("LOGIN");
+        audit.setAction(AuditAction.LOGIN);
         audit.setIpAddress(ipAddress);
 
         userAuditRepository.save(audit);
@@ -34,7 +35,7 @@ public class UserAuditService {
 
         UserAudit audit = new UserAudit();
         audit.setUsername(username);
-        audit.setAction("VIEW_LOCATION");
+        audit.setAction(AuditAction.VIEW_LOCATION);
         audit.setLocation(location);
         audit.setIpAddress(ipAddress);
 
@@ -48,7 +49,7 @@ public class UserAuditService {
 
         UserAudit audit = new UserAudit();
         audit.setUsername(username);
-        audit.setAction("ACCESS_NVR");
+        audit.setAction(AuditAction.VIEW_NVR);
         audit.setNvrId(nvrId);
         audit.setIpAddress(ipAddress);
 
@@ -65,7 +66,7 @@ public class UserAuditService {
 
     public List<UserAudit> getUserLoginHistory(String username) {
         log.info("[getUserLoginHistory] Fetching login history for user: {}", username);
-        List<UserAudit> history = userAuditRepository.findByUsernameAndAction(username, "LOGIN");
+        List<UserAudit> history = userAuditRepository.findByUsernameAndAction(username, AuditAction.LOGIN);
         log.info("[getUserLoginHistory] Retrieved {} login entries for user: {}", history.size(), username);
         return history;
     }

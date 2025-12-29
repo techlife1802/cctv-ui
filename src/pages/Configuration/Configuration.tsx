@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import { NVR, User } from '../../types';
 import { nvrService, userService } from '../../services/apiService';
+import { NVR_TYPE, USER_ROLE } from '../../constants';
 import './Configuration.scss';
 
 const { Title } = Typography;
@@ -147,7 +148,7 @@ const Configuration: React.FC = () => {
 
     const filteredUserData = userData.filter(item =>
         item.username.toLowerCase().includes(userSearchText.toLowerCase()) ||
-        item.role.toLowerCase().includes(userSearchText.toLowerCase())
+        item.role.toString().toLowerCase().includes(userSearchText.toLowerCase())
     );
 
     const nvrColumns = [
@@ -382,8 +383,8 @@ const Configuration: React.FC = () => {
                         rules={[{ required: true, message: 'Please select NVR Type' }]}
                     >
                         <Select placeholder="Select NVR Type">
-                            <Select.Option value="Hikvision">Hikvision</Select.Option>
-                            <Select.Option value="CP Plus">CP Plus</Select.Option>
+                            <Select.Option value={NVR_TYPE.HIKVISION}>Hikvision</Select.Option>
+                            <Select.Option value={NVR_TYPE.CP_PLUS}>CP Plus</Select.Option>
                         </Select>
                     </Form.Item>
                     <Form.Item
@@ -465,12 +466,12 @@ const Configuration: React.FC = () => {
                     <Form.Item
                         name="role"
                         label="Role"
-                        initialValue="user"
+                        initialValue={USER_ROLE.USER}
                         rules={[{ required: true, message: 'Please select role' }]}
                     >
                         <Select>
-                            <Select.Option value="admin">Admin</Select.Option>
-                            <Select.Option value="user">User</Select.Option>
+                            <Select.Option value={USER_ROLE.ADMIN}>Admin</Select.Option>
+                            <Select.Option value={USER_ROLE.USER}>User</Select.Option>
                         </Select>
                     </Form.Item>
                     <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 0 }}>

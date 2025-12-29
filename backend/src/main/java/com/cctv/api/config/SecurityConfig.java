@@ -59,10 +59,14 @@ public class SecurityConfig {
         return NoOpPasswordEncoder.getInstance(); // For simplicity/dev. Use BCrypt in prod.
     }
 
+    @org.springframework.beans.factory.annotation.Value("${"
+            + com.cctv.api.constant.AppConstants.CORS_ALLOWED_ORIGINS_PROP + ":*}")
+    private String allowedOrigins;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        configuration.setAllowedOriginPatterns(Arrays.asList(allowedOrigins.split(",")));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
