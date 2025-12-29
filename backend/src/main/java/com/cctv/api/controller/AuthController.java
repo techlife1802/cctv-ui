@@ -2,6 +2,8 @@ package com.cctv.api.controller;
 
 import com.cctv.api.model.User;
 import com.cctv.api.repository.UserRepository;
+import com.cctv.api.service.UserAuditService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -15,14 +17,15 @@ import java.util.Base64;
 @Slf4j
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class AuthController {
 
     private final UserRepository userRepository;
+    private final UserAuditService userAuditService;
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> request) {
+    public ResponseEntity<?> login(@RequestBody Map<String, String> request, HttpServletRequest servletRequest) {
         String username = request.get("username");
         log.info("Attempting login for user: {}", username);
         String password = request.get("password");
@@ -35,6 +38,10 @@ public class AuthController {
             Map<String, Object> response = new HashMap<>();
             response.put("user", user);
             response.put("token", "Basic " + token);
+
+            // Log successful login
+            userAuditService.logLogin(username, servletRequest.getRemoteAddr());
+
             log.info("Login successful for user: {}", username);
             return ResponseEntity.ok(response);
         }

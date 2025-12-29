@@ -42,6 +42,20 @@ public class UserAuditService {
         log.debug("[logLocationView] Location view audit entry created for user: {}", username);
     }
 
+    public void logNvrAccess(String username, String nvrId, String ipAddress) {
+        log.info("[logNvrAccess] Logging NVR access for user: {}, NVR: {}, IP: {}",
+                username, nvrId, ipAddress);
+
+        UserAudit audit = new UserAudit();
+        audit.setUsername(username);
+        audit.setAction("ACCESS_NVR");
+        audit.setNvrId(nvrId);
+        audit.setIpAddress(ipAddress);
+
+        userAuditRepository.save(audit);
+        log.debug("[logNvrAccess] NVR access audit entry created for user: {}", username);
+    }
+
     public List<UserAudit> getUserAuditHistory(String username) {
         log.info("[getUserAuditHistory] Fetching audit history for user: {}", username);
         List<UserAudit> history = userAuditRepository.findByUsernameOrderByTimestampDesc(username);

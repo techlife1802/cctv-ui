@@ -15,9 +15,18 @@ CREATE TABLE IF NOT EXISTS nvrs (
     port VARCHAR(255),
     username VARCHAR(255),
     password VARCHAR(255),
-    status VARCHAR(255),
     type VARCHAR(255),
     channels INT DEFAULT 32
+);
+
+CREATE TABLE IF NOT EXISTS user_audit (
+    id VARCHAR(255) PRIMARY KEY,
+    username VARCHAR(255) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    location VARCHAR(255),
+    nvr_id VARCHAR(255),
+    timestamp TIMESTAMP NOT NULL,
+    ip_address VARCHAR(50)
 );
 
 INSERT INTO users (id, username, password, role) VALUES ('1', 'admin', 'admin', 'admin') ON CONFLICT (username) DO NOTHING;

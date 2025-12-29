@@ -3,6 +3,8 @@ package com.cctv.api.controller;
 import com.cctv.api.dto.CameraStreamDto;
 import com.cctv.api.service.HlsService;
 import com.cctv.api.service.NvrService;
+import com.cctv.api.service.UserAuditService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
@@ -14,24 +16,33 @@ import org.springframework.web.bind.annotation.*;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.Principal;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @RestController
 @RequestMapping("/api/stream")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class StreamController {
 
     private final NvrService nvrService;
     private final HlsService hlsService;
+    private final UserAuditService userAuditService;
 
     @GetMapping("/list")
     public List<CameraStreamDto> getStreams(
             @RequestParam String location,
-            @RequestParam(required = false, defaultValue = "All") String nvrId) {
+            @RequestParam(required = false, defaultValue = "All") String nvrId,
+            Principal principal,
+            HttpServletRequest request) {
         log.info("Requesting streams for location: {}, NVR ID: {}", location, nvrId);
+
+        if (principal != null) {
+            userAuditService.logLocationView(principal.getName(), location, request.getRemoteAddr());
+        }
+
         List<CameraStreamDto> streams = nvrService.getCameraStreams(location, nvrId);
         log.debug("Found {} streams", streams.size());
         return streams;
@@ -40,9 +51,16 @@ public class StreamController {
     @GetMapping(value = "/{nvrId}/{channelId}/index.m3u8")
     public ResponseEntity<Resource> getPlaylist(
             @PathVariable String nvrId,
-            @PathVariable int channelId) {
+            @PathVariable int channelId,
+            Principal principal,
+            HttpServletRequest request) {
 
         log.debug("Playlist request for NVR: {}, Channel: {}", nvrId, channelId);
+
+        if (principal != null) {
+            userAuditService.logNvrAccess(principal.getName(), nvrId, request.getRemoteAddr());
+        }
+
         hlsService.startStreamIfNotActive(nvrId, channelId);
 
         Path playlistPath = hlsService.getHlsPlaylistPath(nvrId, channelId);

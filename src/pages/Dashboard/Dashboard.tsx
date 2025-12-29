@@ -128,39 +128,39 @@ const Dashboard: React.FC = () => {
     return (
         <div className="page-content dashboard-page">
             <div className="dashboard-header">
-                <div>
+                <div className="header-title-container">
                     <Title level={2} className="page-title">Live Monitoring</Title>
                     <p className="page-description">{totalActiveFeeds} Active Feeds</p>
                 </div>
 
-                <Select
-                    value={selectedLocation}
-                    className="location-selector"
-                    onChange={setSelectedLocation}
-                    size="large"
-                    suffixIcon={<GlobalOutlined />}
-                    style={{ minWidth: 200 }}
-                    placeholder="Select Location"
-                    allowClear
-                >
-                    <Option value="All">All Locations</Option>
-                    {locations.map(loc => <Option key={loc} value={loc}>{loc}</Option>)}
-                </Select>
+                <div className="selectors-container">
+                    <Select
+                        value={selectedLocation}
+                        className="location-selector"
+                        onChange={setSelectedLocation}
+                        size="large"
+                        suffixIcon={<GlobalOutlined />}
+                        placeholder="Select Location"
+                        allowClear
+                    >
+                        <Option value="All">All Locations</Option>
+                        {locations.map(loc => <Option key={loc} value={loc}>{loc}</Option>)}
+                    </Select>
 
-                <Select
-                    value={selectedNvr}
-                    className="location-selector"
-                    style={{ marginLeft: 16, width: 250 }}
-                    onChange={setSelectedNvr}
-                    size="large"
-                    suffixIcon={<VideoCameraOutlined />}
-                    placeholder="Select NVR"
-                    allowClear
-                    disabled={!selectedLocation}
-                >
-                    <Option value="All">All NVRs</Option>
-                    {availableNvrs.map(nvr => <Option key={nvr.id} value={nvr.id}>{nvr.name}</Option>)}
-                </Select>
+                    <Select
+                        value={selectedNvr}
+                        className="location-selector"
+                        onChange={setSelectedNvr}
+                        size="large"
+                        suffixIcon={<VideoCameraOutlined />}
+                        placeholder="Select NVR"
+                        allowClear
+                        disabled={!selectedLocation}
+                    >
+                        <Option value="All">All NVRs</Option>
+                        {availableNvrs.map(nvr => <Option key={nvr.id} value={nvr.id}>{nvr.name}</Option>)}
+                    </Select>
+                </div>
             </div>
 
             {loading ? (

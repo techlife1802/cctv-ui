@@ -39,7 +39,6 @@ public class NvrService {
         nvr.setPort(nvrDetails.getPort());
         nvr.setUsername(nvrDetails.getUsername());
         nvr.setPassword(nvrDetails.getPassword());
-        nvr.setStatus(nvrDetails.getStatus());
         nvr.setType(nvrDetails.getType());
         nvr.setChannels(nvrDetails.getChannels());
         return nvrRepository.save(nvr);
@@ -47,7 +46,7 @@ public class NvrService {
 
     public void deleteNvr(String id) {
         log.debug("Deleting NVR with id: {}", id);
-        nvrRepository.deleteById(id);
+        nvrRepository.deleteById(java.util.Objects.requireNonNull(id));
     }
 
     public java.util.List<NvrCameraStreamDto> getNvrCameraStreamsByLocation(String location) {
@@ -64,7 +63,6 @@ public class NvrService {
             nvrDto.setNvrId(nvr.getId());
             nvrDto.setNvrName(nvr.getName());
             nvrDto.setNvrIp(nvr.getIp());
-            nvrDto.setNvrStatus(nvr.getStatus());
             nvrDto.setNvrType(nvr.getType());
 
             List<CameraStreamDto> cameraDtos = new java.util.ArrayList<>();
@@ -89,7 +87,8 @@ public class NvrService {
     }
 
     public NVR getNvrById(String id) {
-        return nvrRepository.findById(id).orElseThrow(() -> new RuntimeException("NVR not found with id: " + id));
+        return nvrRepository.findById(java.util.Objects.requireNonNull(id))
+                .orElseThrow(() -> new RuntimeException("NVR not found with id: " + id));
     }
 
     public java.util.List<CameraStreamDto> getCameraStreams(String location, String nvrId) {

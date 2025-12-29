@@ -12,7 +12,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = "*")
 @org.springframework.security.access.prepost.PreAuthorize("hasRole('admin')")
 @RequiredArgsConstructor
 public class UserController {

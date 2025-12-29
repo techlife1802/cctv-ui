@@ -20,6 +20,8 @@ public class UserAudit {
 
     private String location; // For VIEW_LOCATION action
 
+    private String nvrId; // For NVR access tracking
+
     @Column(nullable = false)
     private LocalDateTime timestamp;
 
