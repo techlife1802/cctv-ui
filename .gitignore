@@ -25,13 +25,12 @@ yarn-error.log*
 /tmp
 /logs
 
-# Java/Maven
-# target/
-# *.class
-# .mvn/
-# .classpath
-# .project
-# .settings/
-# *.jar
-# *.war
+target/
+*.class
+.mvn/
+.classpath
+.project
+.settings/
+*.jar
+*.war
 
