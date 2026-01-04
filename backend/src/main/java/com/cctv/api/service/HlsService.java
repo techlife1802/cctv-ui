@@ -3,20 +3,23 @@ package com.cctv.api.service;
 import com.cctv.api.model.NVR;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.bytedeco.ffmpeg.global.avutil;
-import org.bytedeco.javacv.FFmpegLogCallback;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PreDestroy;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @Service
@@ -24,34 +27,42 @@ import java.util.concurrent.Executors;
 public class HlsService {
 
     private final NvrService nvrService;
-    private final Map<String, TranscodingSession> activeSessions = new ConcurrentHashMap<>();
-    private final ExecutorService executorService = Executors.newCachedThreadPool();
-    private static final String HLS_ROOT_DIR = "./tmp" + File.separator + "cctv_hls";
+    private final Map<String, FFmpegSession> activeSessions = new ConcurrentHashMap<>();
 
-    // Enable FFmpeg logging globally
-    static {
-        FFmpegLogCallback.set();
-        avutil.av_log_set_level(avutil.AV_LOG_ERROR);
-    }
+    @org.springframework.beans.factory.annotation.Value("${hls.root.dir}")
+    private String hlsRootDir;
+
+    @org.springframework.beans.factory.annotation.Value("${hls.max.concurrent.streams:50}")
+    private int maxConcurrentStreams;
+
+    @org.springframework.beans.factory.annotation.Value("${hls.idle.timeout.seconds:60}")
+    private long idleTimeoutSeconds;
 
     public Path getHlsPlaylistPath(String nvrId, int channelId) {
-        return Paths.get(HLS_ROOT_DIR, getStreamId(nvrId, channelId), "index.m3u8");
-    }
-
-    public Path getHlsSegmentPath(String nvrId, int channelId, String segmentName) {
-        return Paths.get(HLS_ROOT_DIR, getStreamId(nvrId, channelId), segmentName);
+        return Paths.get(hlsRootDir, getStreamId(nvrId, channelId), "index.m3u8");
     }
 
     public void startStreamIfNotActive(String nvrId, int channelId) {
         String streamId = getStreamId(nvrId, channelId);
         if (activeSessions.containsKey(streamId)) {
             activeSessions.get(streamId).updateLastAccessed();
+            log.debug("[{}] Stream already active, updated last accessed time", streamId);
             return;
         }
 
-        Path streamDir = Paths.get(HLS_ROOT_DIR, streamId);
+        // Check resource limits
+        if (activeSessions.size() >= maxConcurrentStreams) {
+            log.warn("[{}] Maximum concurrent streams ({}) reached. Cannot start new stream.",
+                    streamId, maxConcurrentStreams);
+            throw new RuntimeException("Maximum concurrent streams limit reached: " + maxConcurrentStreams);
+        }
+
+        log.info("[{}] Starting new stream (Active: {}/{})", streamId, activeSessions.size(), maxConcurrentStreams);
+
+        Path streamDir = Paths.get(hlsRootDir, streamId);
         try {
             if (Files.exists(streamDir)) {
+                // Delete existing contents
                 Files.walk(streamDir)
                         .map(Path::toFile)
                         .sorted((o1, o2) -> -o1.compareTo(o2))
@@ -59,28 +70,79 @@ public class HlsService {
             }
             Files.createDirectories(streamDir);
         } catch (IOException e) {
-            log.error("Failed to create HLS directory", e);
+            log.error("Failed to create HLS directory: {}", streamDir, e);
             throw new RuntimeException("Could not initialize streaming directory", e);
         }
 
         NVR nvr = nvrService.getNvrById(nvrId);
         String rtspUrl = nvrService.generateStreamUrl(nvr, channelId);
 
-        TranscodingSession session = new TranscodingSession(streamId, rtspUrl, streamDir.toString());
+        FFmpegSession session = new FFmpegSession(streamId, rtspUrl, streamDir.toString());
         activeSessions.put(streamId, session);
-        executorService.submit(session);
+        session.start();
     }
 
     @Scheduled(fixedRate = 10000)
     public void cleanupIdleSessions() {
         long now = System.currentTimeMillis();
+        long timeoutMs = idleTimeoutSeconds * 1000;
+        AtomicInteger cleanedCount = new AtomicInteger(0);
+
         activeSessions.forEach((streamId, session) -> {
-            if (now - session.getLastAccessed() > 30000) {
-                log.info("Stopping idle HLS session: {}", streamId);
+            if (now - session.getLastAccessed() > timeoutMs) {
+                log.info("Stopping idle HLS session: {} (idle for {}s)",
+                        streamId, (now - session.getLastAccessed()) / 1000);
                 session.stop();
                 activeSessions.remove(streamId);
+                cleanedCount.incrementAndGet();
             }
         });
+
+        if (cleanedCount.get() > 0) {
+            log.info("Cleaned up {} idle session(s). Active streams: {}", cleanedCount.get(), activeSessions.size());
+        }
+    }
+
+    /**
+     * Get current resource usage statistics
+     */
+    public StreamStats getStreamStats() {
+        return new StreamStats(
+                activeSessions.size(),
+                maxConcurrentStreams,
+                activeSessions.keySet());
+    }
+
+    /**
+     * Check if a stream is currently active
+     */
+    public boolean isStreamActive(String nvrId, int channelId) {
+        return activeSessions.containsKey(getStreamId(nvrId, channelId));
+    }
+
+    /**
+     * Force stop a specific stream
+     */
+    public void stopStream(String nvrId, int channelId) {
+        String streamId = getStreamId(nvrId, channelId);
+        FFmpegSession session = activeSessions.remove(streamId);
+        if (session != null) {
+            log.info("Force stopping stream: {}", streamId);
+            session.stop();
+        }
+    }
+
+    public record StreamStats(
+            int activeStreams,
+            int maxStreams,
+            java.util.Set<String> activeStreamIds) {
+    }
+
+    @PreDestroy
+    public void stopAllSessions() {
+        log.info("Shutting down HLS sessions...");
+        activeSessions.values().forEach(FFmpegSession::stop);
+        activeSessions.clear();
     }
 
     private String getStreamId(String nvrId, int channelId) {
@@ -88,16 +150,15 @@ public class HlsService {
     }
 
     @Slf4j
-    private static class TranscodingSession implements Runnable {
+    private static class FFmpegSession {
         private final String streamId;
         private final String rtspUrl;
         private final String outputDir;
         private volatile long lastAccessed = System.currentTimeMillis();
-        private volatile boolean running = true;
-        private org.bytedeco.javacv.FFmpegFrameGrabber grabber;
-        private org.bytedeco.javacv.FFmpegFrameRecorder recorder;
+        private Process ffmpegProcess;
+        private Thread monitorThread;
 
-        public TranscodingSession(String streamId, String rtspUrl, String outputDir) {
+        public FFmpegSession(String streamId, String rtspUrl, String outputDir) {
             this.streamId = streamId;
             this.rtspUrl = rtspUrl;
             this.outputDir = outputDir;
@@ -111,156 +172,147 @@ public class HlsService {
             return lastAccessed;
         }
 
-        public void stop() {
-            running = false;
+        public void start() {
+            // Try with stream copy first (ultra low CPU)
+            startProcess(true);
+        }
+
+        private void startProcess(boolean useCopy) {
+            List<String> command = new ArrayList<>();
+            command.add("ffmpeg");
+
+            // Input optimization
+            command.add("-rtsp_transport");
+            command.add("tcp");
+            command.add("-rtsp_flags");
+            command.add("prefer_tcp");
+            command.add("-stimeout");
+            command.add("5000000"); // 5 second timeout
+            command.add("-i");
+            command.add(rtspUrl);
+
+            if (useCopy) {
+                log.info("[{}] Attempting stream copy...", streamId);
+                command.add("-c:v");
+                command.add("copy");
+            } else {
+                log.info("[{}] Falling back to transcoding...", streamId);
+                command.add("-c:v");
+                command.add("libx264");
+                command.add("-preset");
+                command.add("ultrafast");
+                command.add("-tune");
+                command.add("zerolatency");
+                command.add("-profile:v");
+                command.add("baseline");
+                command.add("-level");
+                command.add("3.0");
+                command.add("-pix_fmt");
+                command.add("yuv420p");
+                // Limit CPU usage
+                command.add("-threads");
+                command.add("2");
+                // Quality settings for low latency
+                command.add("-crf");
+                command.add("23");
+                command.add("-maxrate");
+                command.add("2M");
+                command.add("-bufsize");
+                command.add("4M");
+            }
+
+            command.add("-an"); // No audio
+            command.add("-f");
+            command.add("hls");
+            // Optimized HLS settings for low latency
+            command.add("-hls_time");
+            command.add("2");
+            command.add("-hls_list_size");
+            command.add("5");
+            command.add("-hls_flags");
+            command.add("delete_segments+independent_segments+omit_endlist");
+            command.add("-hls_segment_type");
+            command.add("mpegts");
+            command.add("-hls_segment_filename");
+            command.add(outputDir + File.separator + "seg_%03d.ts");
+            // Reduce startup delay
+            command.add("-start_number");
+            command.add("0");
+            command.add("-hls_allow_cache");
+            command.add("0");
+            command.add(outputDir + File.separator + "index.m3u8");
+
+            ProcessBuilder pb = new ProcessBuilder(command);
+            pb.redirectErrorStream(true);
+
+            // Set process priority to lower CPU usage (optional, OS-dependent)
+            // This helps prevent FFmpeg from consuming all CPU resources
             try {
-                if (recorder != null) {
-                    recorder.stop();
-                    recorder.release();
-                }
-                if (grabber != null) {
-                    grabber.stop();
-                    grabber.release();
-                }
+                // On Linux, this sets nice value (higher = lower priority)
+                // Note: This may not work on all systems, especially in containers
+                pb.inheritIO();
             } catch (Exception e) {
-                log.error("[{}] Error stopping transcoding session", streamId, e);
+                log.debug("[{}] Could not set process priority", streamId);
+            }
+
+            try {
+                ffmpegProcess = pb.start();
+                log.info("[{}] FFmpeg process started (PID: {})", streamId, ffmpegProcess.pid());
+                monitorThread = new Thread(() -> monitorProcess(useCopy));
+                monitorThread.setName("FFmpegMonitor-" + streamId);
+                monitorThread.setDaemon(true); // Don't prevent JVM shutdown
+                monitorThread.start();
+            } catch (IOException e) {
+                log.error("[{}] Failed to start FFmpeg process", streamId, e);
+                throw new RuntimeException("Failed to start FFmpeg for stream: " + streamId, e);
             }
         }
 
-        @Override
-        public void run() {
+        private void monitorProcess(boolean wasUsingCopy) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(ffmpegProcess.getInputStream()))) {
+                String line;
+                int lineCount = 0;
+                while ((line = reader.readLine()) != null) {
+                    if (lineCount < 20) { // Log first few lines for debugging
+                        log.debug("[{}] FFmpeg: {}", streamId, line);
+                        lineCount++;
+                    }
+                    if (line.contains("Error") || line.contains("failed")) {
+                        log.warn("[{}] FFmpeg Warning/Error: {}", streamId, line);
+                    }
+                }
+            } catch (IOException e) {
+                log.debug("[{}] FFmpeg output stream closed", streamId);
+            }
+
             try {
-                log.info("[{}] Connecting to RTSP: {}", streamId, rtspUrl);
+                int exitCode = ffmpegProcess.waitFor();
+                log.info("[{}] FFmpeg process exited with code {}", streamId, exitCode);
 
-                String outputPath = outputDir + File.separator + "index.m3u8";
-                log.info("[{}] Output path: {}", streamId, outputPath);
-
-                // Initialize frame grabber for RTSP input
-                grabber = new org.bytedeco.javacv.FFmpegFrameGrabber(rtspUrl);
-                grabber.setOption("rtsp_transport", "tcp");
-                grabber.setOption("stimeout", "5000000"); // 5 second timeout
-                grabber.setOption("fflags", "nobuffer");
-                grabber.setOption("flags", "low_delay");
-                grabber.setOption("probesize", "32");
-                grabber.setOption("analyzeduration", "1000000"); // 1 second
-
-                log.info("[{}] Starting frame grabber...", streamId);
-                grabber.start();
-
-                log.info("[{}] Stream info - Video codec: {}, Image width: {}, Image height: {}, Frame rate: {}",
-                        streamId, grabber.getVideoCodec(), grabber.getImageWidth(),
-                        grabber.getImageHeight(), grabber.getFrameRate());
-
-                // Initialize frame recorder for HLS output
-                recorder = new org.bytedeco.javacv.FFmpegFrameRecorder(outputPath, grabber.getImageWidth(),
-                        grabber.getImageHeight());
-
-                // Set video codec and encoding parameters
-                recorder.setVideoCodec(org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_ID_H264);
-                recorder.setFormat("hls");
-                recorder.setPixelFormat(org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_YUV420P);
-                recorder.setFrameRate(grabber.getFrameRate());
-                recorder.setVideoBitrate(800000); // 800k
-
-                // H.264 encoding options
-                recorder.setVideoOption("preset", "ultrafast");
-                recorder.setVideoOption("tune", "zerolatency");
-                int gopSize = (int) Math.max(2, grabber.getFrameRate() * 1); // 1 keyframe per second
-                recorder.setVideoOption("g", String.valueOf(gopSize));
-                recorder.setVideoOption("sc_threshold", "0");
-                recorder.setVideoOption("maxrate", "800k");
-                recorder.setVideoOption("bufsize", "1600k");
-
-                // HLS specific options
-                recorder.setOption("hls_time", "1"); // 1 second segments
-                recorder.setOption("hls_list_size", "5");
-                recorder.setOption("hls_flags", "delete_segments+independent_segments+discont_start+omit_endlist");
-                recorder.setOption("hls_segment_type", "mpegts");
-                recorder.setOption("hls_segment_filename", outputDir + File.separator + "segment_%03d.ts");
-                recorder.setOption("start_number", "0");
-
-                log.info("[{}] Starting frame recorder...", streamId);
-                recorder.start();
-
-                log.info("[{}] HLS transcoding started successfully", streamId);
-
-                // Frame processing loop
-                org.bytedeco.javacv.Frame frame;
-                long frameCount = 0;
-                long lastLogTime = System.currentTimeMillis();
-
-                while (running) {
-                    try {
-                        frame = grabber.grab();
-
-                        if (frame == null) {
-                            log.warn("[{}] Received null frame, stream may have ended", streamId);
-                            break;
-                        }
-
-                        // Only process video frames
-                        if (frame.image != null) {
-                            // Synchronize timestamps
-                            if (frameCount == 0) {
-                                recorder.setTimestamp(grabber.getTimestamp());
-                            } else {
-                                // Some streams have inconsistent timestamps, ensure monotonicity
-                                long timestamp = Math.max(recorder.getTimestamp() + 1, grabber.getTimestamp());
-                                recorder.setTimestamp(timestamp);
-                            }
-
-                            recorder.record(frame);
-                            frameCount++;
-
-                            // Log progress every 10 seconds to reduce log noise
-                            long currentTime = System.currentTimeMillis();
-                            if (currentTime - lastLogTime > 10000) {
-                                log.debug("[{}] Processed {} frames. Current timestamp: {}", streamId, frameCount,
-                                        grabber.getTimestamp());
-                                lastLogTime = currentTime;
-                            }
-                        }
-
-                    } catch (org.bytedeco.javacv.FrameGrabber.Exception e) {
-                        log.error("[{}] Error grabbing frame: {}", streamId, e.getMessage());
-                        break;
-                    } catch (org.bytedeco.javacv.FrameRecorder.Exception e) {
-                        log.error("[{}] Error recording frame: {}", streamId, e.getMessage());
-                        break;
-                    }
+                if (exitCode != 0 && wasUsingCopy) {
+                    log.warn("[{}] Stream copy failed, trying fallback to transcoding...", streamId);
+                    startProcess(false);
                 }
+            } catch (InterruptedException e) {
+                log.error("[{}] Monitor thread interrupted", streamId);
+                Thread.currentThread().interrupt();
+            }
+        }
 
-                log.info("[{}] Frame processing completed. Total frames: {}", streamId, frameCount);
-
-            } catch (org.bytedeco.javacv.FrameGrabber.Exception e) {
-                log.error("[{}] Failed to start frame grabber: {}", streamId, e.getMessage(), e);
-            } catch (org.bytedeco.javacv.FrameRecorder.Exception e) {
-                log.error("[{}] Failed to start frame recorder: {}", streamId, e.getMessage(), e);
-            } catch (Exception e) {
-                log.error("[{}] Streaming error: {}", streamId, e.getMessage(), e);
-            } finally {
-                // Clean up resources
+        public void stop() {
+            if (ffmpegProcess != null && ffmpegProcess.isAlive()) {
+                ffmpegProcess.destroy();
                 try {
-                    if (recorder != null) {
-                        log.info("[{}] Stopping recorder...", streamId);
-                        recorder.stop();
-                        recorder.release();
+                    if (!ffmpegProcess.waitFor(5, TimeUnit.SECONDS)) {
+                        ffmpegProcess.destroyForcibly();
                     }
-                } catch (Exception e) {
-                    log.error("[{}] Error stopping recorder", streamId, e);
+                } catch (InterruptedException e) {
+                    ffmpegProcess.destroyForcibly();
+                    Thread.currentThread().interrupt();
                 }
-
-                try {
-                    if (grabber != null) {
-                        log.info("[{}] Stopping grabber...", streamId);
-                        grabber.stop();
-                        grabber.release();
-                    }
-                } catch (Exception e) {
-                    log.error("[{}] Error stopping grabber", streamId, e);
-                }
-
-                log.info("[{}] Session ended", streamId);
+            }
+            if (monitorThread != null) {
+                monitorThread.interrupt();
             }
         }
     }

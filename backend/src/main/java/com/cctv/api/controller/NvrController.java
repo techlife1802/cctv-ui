@@ -6,6 +6,7 @@ import com.cctv.api.service.NvrService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,7 +14,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequestMapping("/api/nvrs")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class NvrController {
 
@@ -32,21 +33,21 @@ public class NvrController {
     }
 
     @PostMapping
-    @org.springframework.security.access.prepost.PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public NVR createNvr(@RequestBody NVR nvr) {
         log.info("Creating new NVR: {}", nvr.getName());
         return nvrService.createNvr(nvr);
     }
 
     @PutMapping("/{id}")
-    @org.springframework.security.access.prepost.PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public NVR updateNvr(@PathVariable String id, @RequestBody NVR nvr) {
         log.info("Updating NVR with ID: {}", id);
         return nvrService.updateNvr(id, nvr);
     }
 
     @DeleteMapping("/{id}")
-    @org.springframework.security.access.prepost.PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteNvr(@PathVariable String id) {
         log.info("Deleting NVR with ID: {}", id);
         nvrService.deleteNvr(id);

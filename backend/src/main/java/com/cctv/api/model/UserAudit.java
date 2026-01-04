@@ -15,10 +15,13 @@ public class UserAudit {
     @Column(nullable = false)
     private String username;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
-    private String action; // LOGIN, VIEW_LOCATION
+    private AuditAction action; // LOGIN, VIEW_LOCATION, VIEW_NVR
 
     private String location; // For VIEW_LOCATION action
+
+    private String nvrId; // For NVR access tracking
 
     @Column(nullable = false)
     private LocalDateTime timestamp;

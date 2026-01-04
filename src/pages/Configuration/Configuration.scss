@@ -8,9 +8,20 @@
         background: var(--bg-card);
         border-radius: 8px;
         border: 1px solid var(--border-color);
+        gap: 16px;
+
+        @media (max-width: 768px) {
+            flex-direction: column;
+            align-items: stretch;
+            padding: 12px;
+        }
 
         .search-input {
             width: 300px;
+
+            @media (max-width: 768px) {
+                width: 100%;
+            }
         }
     }
 
@@ -19,9 +30,11 @@
         background: var(--bg-card);
         border-radius: 8px;
         border: 1px solid var(--border-color);
+        overflow-x: auto;
 
         .ant-table-wrapper {
             padding: 0;
+            min-width: 600px;
         }
     }
 
@@ -37,12 +50,21 @@
             overflow: hidden;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 
+            @media (max-width: 768px) {
+                margin-bottom: 16px;
+            }
+
             .ant-collapse-header {
                 font-weight: 600;
                 font-size: 18px;
                 padding: 20px 24px;
                 background: var(--bg-card);
                 border-bottom: none;
+
+                @media (max-width: 768px) {
+                    padding: 16px;
+                    font-size: 16px;
+                }
 
                 &:hover {
                     background: var(--bg-hover);
@@ -53,6 +75,10 @@
                 background: transparent !important;
                 border-top: 1px solid var(--border-color) !important;
                 padding: 16px;
+
+                @media (max-width: 768px) {
+                    padding: 12px 8px;
+                }
             }
         }
     }

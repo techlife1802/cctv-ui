@@ -8,7 +8,6 @@ public class NvrCameraStreamDto {
     private String nvrId;
     private String nvrName;
     private String nvrIp;
-    private String nvrStatus;
     private String nvrType;
     private List<CameraStreamDto> cameras;
 }
