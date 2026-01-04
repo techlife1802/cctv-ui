@@ -124,17 +124,26 @@
     }
 
     .video-grid {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 24px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
         align-content: flex-start;
         flex: 1;
         overflow-y: auto;
         padding-right: 8px;
         padding-bottom: 24px;
 
-        @media (max-width: 768px) {
+        @media (max-width: 1400px) {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        @media (max-width: 992px) {
+            grid-template-columns: repeat(2, 1fr);
             gap: 16px;
+        }
+
+        @media (max-width: 576px) {
+            grid-template-columns: 1fr;
             padding-right: 0;
         }
 
@@ -165,20 +174,7 @@
     }
 
     .camera-card {
-        // Desktop default: 4 columns
-        width: calc(25% - 18px);
-
-        @media (max-width: 1200px) {
-            width: calc(33.33% - 16px);
-        }
-
-        @media (max-width: 992px) {
-            width: calc(50% - 12px);
-        }
-
-        @media (max-width: 576px) {
-            width: 100%;
-        }
+        width: 100%;
 
         background: #000;
         border-radius: 8px;
@@ -188,7 +184,7 @@
         aspect-ratio: 16/9;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         transition: transform 0.2s,
-        box-shadow 0.2s;
+            box-shadow 0.2s;
         min-width: 0;
 
         &:hover {
@@ -238,8 +234,17 @@
                 align-items: center;
                 gap: 4px;
 
-                &.offline {
+                &.offline,
+                &.failed {
                     background: rgba(255, 77, 79, 0.8);
+                }
+
+                &.loading {
+                    background: rgba(24, 144, 255, 0.8);
+                }
+
+                &.retrying {
+                    background: rgba(250, 173, 20, 0.8);
                 }
 
                 .dot {

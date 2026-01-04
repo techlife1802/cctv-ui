@@ -1,5 +1,5 @@
 import client from '../api/client';
-import { Camera, NVR, LoginRequest, LoginResponse, NvrGroup, User } from '../types';
+import { Camera, NVR, LoginRequest, LoginResponse, NvrGroup, User, StreamInfo } from '../types';
 import { API_ENDPOINTS, APP_CONFIG } from '../constants';
 
 export const authService = {
@@ -44,6 +44,13 @@ export const cameraService = {
     },
     getStreams: async (location: string, nvrId: string = APP_CONFIG.ALL_FILTER): Promise<Camera[]> => {
         const response = await client.get(`${API_ENDPOINTS.STREAM}/list?location=${location}&nvrId=${nvrId}`);
+        return response.data;
+    }
+};
+
+export const streamService = {
+    getStreamInfo: async (nvrId: string, channelId: number): Promise<StreamInfo> => {
+        const response = await client.get(`${API_ENDPOINTS.STREAM}/${nvrId}/${channelId}/info`);
         return response.data;
     }
 };

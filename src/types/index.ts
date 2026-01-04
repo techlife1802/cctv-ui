@@ -56,3 +56,12 @@ export interface ApiResponse<T> {
     success: boolean;
     message?: string;
 }
+
+export interface StreamInfo {
+    webRtcUrl?: string;
+    hlsUrl?: string;
+    rtspUrl?: string;
+    streamId: string;
+    mediamtxEnabled: boolean;
+    iceServers?: { urls: string | string[]; username?: string; credential?: string }[];
+}

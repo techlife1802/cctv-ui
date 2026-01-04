@@ -236,12 +236,12 @@ const Configuration: React.FC = () => {
             dataIndex: 'role',
             key: 'role',
             filters: [
-                { text: 'Admin', value: 'admin' },
-                { text: 'User', value: 'user' },
+                { text: 'ADMIN', value: 'ADMIN' },
+                { text: 'USER', value: 'USER' },
             ],
             onFilter: (value: any, record: User) => record.role === value,
             render: (role: string) => (
-                <Tag color={role === 'admin' ? 'blue' : 'green'}>
+                <Tag color={role === 'ADMIN' ? 'blue' : 'green'}>
                     {role.toUpperCase()}
                 </Tag>
             ),

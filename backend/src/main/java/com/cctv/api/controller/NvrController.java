@@ -33,21 +33,21 @@ public class NvrController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public NVR createNvr(@RequestBody NVR nvr) {
         log.info("Creating new NVR: {}", nvr.getName());
         return nvrService.createNvr(nvr);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public NVR updateNvr(@PathVariable String id, @RequestBody NVR nvr) {
         log.info("Updating NVR with ID: {}", id);
         return nvrService.updateNvr(id, nvr);
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteNvr(@PathVariable String id) {
         log.info("Deleting NVR with ID: {}", id);
         nvrService.deleteNvr(id);

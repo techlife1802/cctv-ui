@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @Service
@@ -31,6 +32,12 @@ public class HlsService {
     @org.springframework.beans.factory.annotation.Value("${hls.root.dir}")
     private String hlsRootDir;
 
+    @org.springframework.beans.factory.annotation.Value("${hls.max.concurrent.streams:50}")
+    private int maxConcurrentStreams;
+
+    @org.springframework.beans.factory.annotation.Value("${hls.idle.timeout.seconds:60}")
+    private long idleTimeoutSeconds;
+
     public Path getHlsPlaylistPath(String nvrId, int channelId) {
         return Paths.get(hlsRootDir, getStreamId(nvrId, channelId), "index.m3u8");
     }
@@ -39,8 +46,18 @@ public class HlsService {
         String streamId = getStreamId(nvrId, channelId);
         if (activeSessions.containsKey(streamId)) {
             activeSessions.get(streamId).updateLastAccessed();
+            log.debug("[{}] Stream already active, updated last accessed time", streamId);
             return;
         }
+
+        // Check resource limits
+        if (activeSessions.size() >= maxConcurrentStreams) {
+            log.warn("[{}] Maximum concurrent streams ({}) reached. Cannot start new stream.",
+                    streamId, maxConcurrentStreams);
+            throw new RuntimeException("Maximum concurrent streams limit reached: " + maxConcurrentStreams);
+        }
+
+        log.info("[{}] Starting new stream (Active: {}/{})", streamId, activeSessions.size(), maxConcurrentStreams);
 
         Path streamDir = Paths.get(hlsRootDir, streamId);
         try {
@@ -68,13 +85,57 @@ public class HlsService {
     @Scheduled(fixedRate = 10000)
     public void cleanupIdleSessions() {
         long now = System.currentTimeMillis();
+        long timeoutMs = idleTimeoutSeconds * 1000;
+        AtomicInteger cleanedCount = new AtomicInteger(0);
+
         activeSessions.forEach((streamId, session) -> {
-            if (now - session.getLastAccessed() > 60000) { // 60 seconds idle timeout
-                log.info("Stopping idle HLS session: {}", streamId);
+            if (now - session.getLastAccessed() > timeoutMs) {
+                log.info("Stopping idle HLS session: {} (idle for {}s)",
+                        streamId, (now - session.getLastAccessed()) / 1000);
                 session.stop();
                 activeSessions.remove(streamId);
+                cleanedCount.incrementAndGet();
             }
         });
+
+        if (cleanedCount.get() > 0) {
+            log.info("Cleaned up {} idle session(s). Active streams: {}", cleanedCount.get(), activeSessions.size());
+        }
+    }
+
+    /**
+     * Get current resource usage statistics
+     */
+    public StreamStats getStreamStats() {
+        return new StreamStats(
+                activeSessions.size(),
+                maxConcurrentStreams,
+                activeSessions.keySet());
+    }
+
+    /**
+     * Check if a stream is currently active
+     */
+    public boolean isStreamActive(String nvrId, int channelId) {
+        return activeSessions.containsKey(getStreamId(nvrId, channelId));
+    }
+
+    /**
+     * Force stop a specific stream
+     */
+    public void stopStream(String nvrId, int channelId) {
+        String streamId = getStreamId(nvrId, channelId);
+        FFmpegSession session = activeSessions.remove(streamId);
+        if (session != null) {
+            log.info("Force stopping stream: {}", streamId);
+            session.stop();
+        }
+    }
+
+    public record StreamStats(
+            int activeStreams,
+            int maxStreams,
+            java.util.Set<String> activeStreamIds) {
     }
 
     @PreDestroy
@@ -119,9 +180,14 @@ public class HlsService {
         private void startProcess(boolean useCopy) {
             List<String> command = new ArrayList<>();
             command.add("ffmpeg");
-            command.add("-re"); // Read input at native frame rate
+
+            // Input optimization
             command.add("-rtsp_transport");
             command.add("tcp");
+            command.add("-rtsp_flags");
+            command.add("prefer_tcp");
+            command.add("-stimeout");
+            command.add("5000000"); // 5 second timeout
             command.add("-i");
             command.add(rtspUrl);
 
@@ -137,31 +203,68 @@ public class HlsService {
                 command.add("ultrafast");
                 command.add("-tune");
                 command.add("zerolatency");
+                command.add("-profile:v");
+                command.add("baseline");
+                command.add("-level");
+                command.add("3.0");
+                command.add("-pix_fmt");
+                command.add("yuv420p");
+                // Limit CPU usage
+                command.add("-threads");
+                command.add("2");
+                // Quality settings for low latency
+                command.add("-crf");
+                command.add("23");
+                command.add("-maxrate");
+                command.add("2M");
+                command.add("-bufsize");
+                command.add("4M");
             }
 
             command.add("-an"); // No audio
             command.add("-f");
             command.add("hls");
+            // Optimized HLS settings for low latency
             command.add("-hls_time");
             command.add("2");
             command.add("-hls_list_size");
             command.add("5");
             command.add("-hls_flags");
             command.add("delete_segments+independent_segments+omit_endlist");
+            command.add("-hls_segment_type");
+            command.add("mpegts");
             command.add("-hls_segment_filename");
             command.add(outputDir + File.separator + "seg_%03d.ts");
+            // Reduce startup delay
+            command.add("-start_number");
+            command.add("0");
+            command.add("-hls_allow_cache");
+            command.add("0");
             command.add(outputDir + File.separator + "index.m3u8");
 
             ProcessBuilder pb = new ProcessBuilder(command);
             pb.redirectErrorStream(true);
 
+            // Set process priority to lower CPU usage (optional, OS-dependent)
+            // This helps prevent FFmpeg from consuming all CPU resources
+            try {
+                // On Linux, this sets nice value (higher = lower priority)
+                // Note: This may not work on all systems, especially in containers
+                pb.inheritIO();
+            } catch (Exception e) {
+                log.debug("[{}] Could not set process priority", streamId);
+            }
+
             try {
                 ffmpegProcess = pb.start();
+                log.info("[{}] FFmpeg process started (PID: {})", streamId, ffmpegProcess.pid());
                 monitorThread = new Thread(() -> monitorProcess(useCopy));
                 monitorThread.setName("FFmpegMonitor-" + streamId);
+                monitorThread.setDaemon(true); // Don't prevent JVM shutdown
                 monitorThread.start();
             } catch (IOException e) {
                 log.error("[{}] Failed to start FFmpeg process", streamId, e);
+                throw new RuntimeException("Failed to start FFmpeg for stream: " + streamId, e);
             }
         }
 

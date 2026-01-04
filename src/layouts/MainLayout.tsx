@@ -40,7 +40,7 @@ const MainLayout: React.FC = () => {
         },
     ];
 
-    const menuItems = user?.role === 'admin'
+    const menuItems = user?.role === 'ADMIN'
         ? [...baseMenuItems, ...adminMenuItems]
         : baseMenuItems;
 

@@ -1,5 +1,13 @@
 DROP TABLE IF EXISTS cameras;
 
+CREATE TABLE IF NOT EXISTS cameras (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    stream_path VARCHAR(255) NOT NULL,
+    location VARCHAR(255),
+    nvr_id VARCHAR(255)
+);
+
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(255) PRIMARY KEY,
     username VARCHAR(255) NOT NULL UNIQUE,
@@ -29,4 +37,4 @@ CREATE TABLE IF NOT EXISTS user_audit (
     ip_address VARCHAR(50)
 );
 
-INSERT INTO users (id, username, password, role) VALUES ('1', 'admin', 'admin', 'admin') ON CONFLICT (username) DO NOTHING;
+INSERT INTO users (id, username, password, role) VALUES ('1', 'admin', 'admin', 'ADMIN') ON CONFLICT (username) DO UPDATE SET role = EXCLUDED.role, password = EXCLUDED.password;

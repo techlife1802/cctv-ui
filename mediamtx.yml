@@ -1,0 +1,66 @@
+####################
+# API
+####################
+api: yes
+apiAddress: :8557
+
+####################
+# Authentication
+####################
+authMethod: internal
+authInternalUsers:
+  - user: admin
+    pass: admin
+    permissions:
+      - action: api
+      - action: publish
+
+  - user: any
+    permissions:
+      - action: read
+
+####################
+# Logging
+####################
+logLevel: debug
+logDestinations: [stdout]
+
+####################
+# Protocols
+####################
+rtsp: yes
+rtspAddress: :8554
+
+rtmp: yes
+rtmpAddress: :1935
+
+hls: yes
+hlsAddress: :8888
+hlsAllowOrigins: ["*"]
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcAllowOrigins: ["*"]
+webrtcLocalUDPAddress: :8189
+webrtcAdditionalHosts: [192.168.0.172]
+webrtcICEServers2:
+  - url: stun:stun.l.google.com:19302
+  - url: turn:192.168.0.172:3478
+    username: mediamtx
+    password: mediamtxpassword
+
+####################
+# Path Defaults
+####################
+pathDefaults:
+  sourceProtocol: tcp
+  sourceOnDemand: yes
+  sourceOnDemandStartTimeout: 30s
+  sourceOnDemandCloseAfter: 30s
+
+####################
+# Paths (DYNAMIC)
+####################
+# Paths are dynamically created via API by the backend
+paths:
+  # No static paths

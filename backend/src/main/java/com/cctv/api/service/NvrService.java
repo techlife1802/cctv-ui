@@ -8,6 +8,8 @@ import com.cctv.api.dto.CameraStreamDto;
 import com.cctv.api.repository.NvrRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,17 +20,21 @@ import java.util.List;
 public class NvrService {
 
     private final NvrRepository nvrRepository;
+    private final MediaMtxService mediaMtxService;
 
+    @Cacheable(value = "nvrs", key = "'all'")
     public List<NVR> getAllNvrs() {
         log.debug("Fetching all NVRs from DB");
         return nvrRepository.findAll();
     }
 
+    @CacheEvict(value = { "nvrs", "nvrsByLocation", "streamLists" }, allEntries = true)
     public NVR createNvr(NVR nvr) {
         log.debug("Saving new NVR: {}", nvr.getName());
         return nvrRepository.save(nvr);
     }
 
+    @CacheEvict(value = { "nvrs", "nvrsByLocation", "streamLists" }, allEntries = true)
     public NVR updateNvr(String id, NVR nvrDetails) {
         log.debug("Updating NVR: {}", id);
         NVR nvr = nvrRepository.findById(java.util.Objects.requireNonNull(id)).orElseThrow(() -> {
@@ -46,11 +52,13 @@ public class NvrService {
         return nvrRepository.save(nvr);
     }
 
+    @CacheEvict(value = { "nvrs", "nvrsByLocation", "streamLists" }, allEntries = true)
     public void deleteNvr(String id) {
         log.debug("Deleting NVR with id: {}", id);
         nvrRepository.deleteById(java.util.Objects.requireNonNull(id));
     }
 
+    @Cacheable(value = "nvrsByLocation", key = "#location")
     public java.util.List<NvrCameraStreamDto> getNvrCameraStreamsByLocation(String location) {
         log.debug("Fetching NVR streams for location: {}", location);
         List<NVR> nvrs;
@@ -76,7 +84,15 @@ public class NvrService {
                 camDto.setStatus("Online");
                 camDto.setThumbnail(null);
 
-                String proxyUrl = String.format("/api/stream/%s/%d/%s", nvr.getId(), i, AppConstants.HLS_PLAYLIST_NAME);
+                // Use MediaMTX if enabled, otherwise fallback to HLS
+                String proxyUrl;
+                if (mediaMtxService.isEnabled()) {
+                    // Use stream info endpoint for MediaMTX
+                    proxyUrl = String.format("/api/stream/%s/%d/info", nvr.getId(), i);
+                } else {
+                    // Fallback to HLS
+                    proxyUrl = String.format("/api/stream/%s/%d/%s", nvr.getId(), i, AppConstants.HLS_PLAYLIST_NAME);
+                }
                 camDto.setStreamUrl(proxyUrl);
                 camDto.setLocation(nvr.getLocation());
                 camDto.setNvr(nvr.getName());
@@ -93,6 +109,7 @@ public class NvrService {
                 .orElseThrow(() -> new RuntimeException("NVR not found with id: " + id));
     }
 
+    @Cacheable(value = "streamLists", key = "#location + '_' + #nvrId")
     public java.util.List<CameraStreamDto> getCameraStreams(String location, String nvrId) {
         log.debug("Fetching camera streams for location: {} and NVR ID: {}", location, nvrId);
         List<NVR> nvrs;
@@ -119,8 +136,16 @@ public class NvrService {
                         camDto.setStatus("Online");
                         camDto.setThumbnail(null);
 
-                        String proxyUrl = String.format("/api/stream/%s/%d/%s", nvr.getId(), i,
-                                AppConstants.HLS_PLAYLIST_NAME);
+                        // Use MediaMTX if enabled, otherwise fallback to HLS
+                        String proxyUrl;
+                        if (mediaMtxService.isEnabled()) {
+                            // Use stream info endpoint for MediaMTX
+                            proxyUrl = String.format("/api/stream/%s/%d/info", nvr.getId(), i);
+                        } else {
+                            // Fallback to HLS
+                            proxyUrl = String.format("/api/stream/%s/%d/%s", nvr.getId(), i,
+                                    AppConstants.HLS_PLAYLIST_NAME);
+                        }
                         camDto.setStreamUrl(proxyUrl);
                         camDto.setLocation(nvr.getLocation());
                         camDto.setNvr(nvr.getName());
@@ -137,25 +162,25 @@ public class NvrService {
                 : AppConstants.DEFAULT_RTSP_PORT;
 
         try {
+            // Manual minimal encoding for RTSP credentials to avoid URLEncoder "+" issues
+            // We only really need to encode '@' and ':' if they appear in credentials
+            String username = nvr.getUsername().replace("@", "%40").replace(":", "%3A").replace(" ", "%20");
+            String password = nvr.getPassword().replace("@", "%40").replace(":", "%3A").replace(" ", "%20");
 
             NvrType type = NvrType.fromString(nvr.getType());
             if (type != null) {
                 if (type == NvrType.HIKVISION) {
-                    // RTSP format for Hikvision:
-                    // rtsp://user:password@ip:port/Streaming/Channels/101
                     url = String.format("rtsp://%s:%s@%s:%s/Streaming/Channels/%d01",
-                            nvr.getUsername(), nvr.getPassword(), nvr.getIp(), port, channel);
+                            username, password, nvr.getIp(), port, channel);
                 } else if (type == NvrType.CP_PLUS) {
-                    // RTSP format for CP Plus:
-                    // rtsp://user:password@ip:port/cam/realmonitor?channel=1&subtype=0
                     url = String.format("rtsp://%s:%s@%s:%s/cam/realmonitor?channel=%d&subtype=0",
-                            nvr.getUsername(), nvr.getPassword(), nvr.getIp(), port, channel);
+                            username, password, nvr.getIp(), port, channel);
                 }
             }
         } catch (Exception e) {
-            log.error("Error encoding credentials for RTSP URL", e);
+            log.error("Error generating RTSP URL", e);
         }
-
+        log.info("url is :::{}", url);
         String maskedUrl = url.replaceFirst(":[^@]+@", ":****@");
         log.info("Generated Stream URL for NVR: {} (Channel {}): {}", nvr.getName(), channel, maskedUrl);
         return url;

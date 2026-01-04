@@ -22,6 +22,6 @@ export enum NVR_TYPE {
 }
 
 export enum USER_ROLE {
-    ADMIN = 'admin',
-    USER = 'user',
+    ADMIN = 'ADMIN',
+    USER = 'USER',
 }

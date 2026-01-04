@@ -1,7 +1,9 @@
 package com.cctv.api.controller;
 
 import com.cctv.api.dto.CameraStreamDto;
+import com.cctv.api.dto.StreamInfoDto;
 import com.cctv.api.service.HlsService;
+import com.cctv.api.service.MediaMtxService;
 import com.cctv.api.service.NvrService;
 import com.cctv.api.service.UserAuditService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,6 +30,7 @@ public class StreamController {
 
     private final NvrService nvrService;
     private final HlsService hlsService;
+    private final MediaMtxService mediaMtxService;
     private final UserAuditService userAuditService;
 
     @GetMapping("/list")
@@ -92,6 +95,58 @@ public class StreamController {
 
         log.warn("Playlist not found for {}_{} after retries", nvrId, channelId);
         return ResponseEntity.notFound().build();
+    }
+
+    /**
+     * Get stream information with all available protocols (MediaMTX)
+     * Returns WebRTC, HLS, and RTSP URLs
+     */
+    @GetMapping(value = "/{nvrId}/{channelId}/info")
+    public ResponseEntity<StreamInfoDto> getStreamInfo(
+            @PathVariable String nvrId,
+            @PathVariable int channelId,
+            Principal principal,
+            HttpServletRequest request) {
+
+        log.debug("Stream info request for NVR: {}, Channel: {}", nvrId, channelId);
+
+        if (principal != null) {
+            userAuditService.logNvrAccess(principal.getName(), nvrId, request.getRemoteAddr());
+        }
+
+        // Get RTSP URL first
+        String rtspUrl = nvrService.generateStreamUrl(
+                nvrService.getNvrById(nvrId), channelId);
+
+        // Explicitly configure the path in MediaMTX via API
+        String pathName = nvrId + "_" + channelId;
+        try {
+            Boolean configured = mediaMtxService.configurePath(pathName, rtspUrl)
+                    .block(java.time.Duration.ofSeconds(5));
+            if (Boolean.FALSE.equals(configured)) {
+                log.warn("Failed to configure MediaMTX path: {}", pathName);
+            }
+        } catch (Exception e) {
+            log.error("Error configuring MediaMTX path: {}. Error: {}", pathName, e.getMessage());
+        }
+
+        StreamInfoDto streamInfo = mediaMtxService.getStreamInfo(nvrId, channelId, rtspUrl, request.getServerName());
+
+        if (streamInfo != null) {
+            return ResponseEntity.ok(streamInfo);
+        }
+
+        // Fallback to HLS if MediaMTX is disabled
+        log.debug("MediaMTX not available, using HLS fallback");
+        String hlsUrl = String.format("/api/stream/%s/%d/index.m3u8", nvrId, channelId);
+
+        return ResponseEntity.ok(new StreamInfoDto(
+                null, // No WebRTC
+                hlsUrl,
+                rtspUrl,
+                nvrId + "_" + channelId,
+                false,
+                null)); // No ICE servers
     }
 
     @GetMapping(value = "/{nvrId}/{channelId}/{segmentName}.ts")

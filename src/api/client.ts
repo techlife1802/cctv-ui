@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { logger } from '../utils/logger';
 
-export const BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://medicare-curves-grande-mathematical.trycloudflare.com';
+export const BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:8080';
 const API_URL = `${BASE_URL}/api`;
 
 const client = axios.create({
