@@ -12,10 +12,6 @@ interface WebRtcPlayerProps {
     onStatusChange?: (status: 'loading' | 'online' | 'retrying' | 'failed') => void;
 }
 
-/**
- * WebRTC Player Component for MediaMTX
- * Implements the WHEP-like SDP exchange required by MediaMTX WebRTC
- */
 const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
     streamUrl,
     autoPlay = true,
@@ -27,11 +23,11 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
     onStatusChange
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const pcRef = useRef<RTCPeerConnection | null>(null);
     const [isLoading, setIsLoading] = useState(!initialStream);
     const [hasError, setHasError] = useState(false);
-    const pcRef = useRef<RTCPeerConnection | null>(null);
 
-    // Use refs for callbacks to avoid effect dependency issues
+    // Store latest callbacks in refs to avoid effect dependency issues
     const onStreamReadyRef = useRef(onStreamReady);
     const onErrorRef = useRef(onError);
     const onStatusChangeRef = useRef(onStatusChange);
@@ -40,18 +36,17 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
         onStreamReadyRef.current = onStreamReady;
         onErrorRef.current = onError;
         onStatusChangeRef.current = onStatusChange;
-    });
+    }, [onStreamReady, onError, onStatusChange]);
 
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
 
-        // If we have an initial stream, just use it and skip handshake
         if (initialStream) {
             video.srcObject = initialStream;
             setIsLoading(false);
             setHasError(false);
-            if (onStatusChangeRef.current) onStatusChangeRef.current('online');
+            onStatusChangeRef.current?.('online');
             return;
         }
 
@@ -60,13 +55,15 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
             return;
         }
 
+        let monitorInterval: number | undefined;
+        let playTimeout: number | undefined;
+
         const startWebRtc = async () => {
             try {
-                if (onStatusChangeRef.current) onStatusChangeRef.current('loading');
                 setIsLoading(true);
                 setHasError(false);
+                onStatusChangeRef.current?.('loading');
 
-                // 1. Create peer connection
                 const pc = new RTCPeerConnection({
                     iceServers: iceServers && iceServers.length > 0
                         ? iceServers
@@ -74,46 +71,33 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                 });
                 pcRef.current = pc;
 
-                // 2. Monitor ICE state
                 pc.oniceconnectionstatechange = () => {
-                    logger.info(`ICE Connection State for ${streamUrl}: ${pc.iceConnectionState}`);
+                    logger.info(`ICE State [${streamUrl}]: ${pc.iceConnectionState}`);
                     if (pc.iceConnectionState === 'failed') {
-                        setHasError(true);
-                        setIsLoading(false);
-                        if (onStatusChangeRef.current) onStatusChangeRef.current('failed');
-                        if (onErrorRef.current) onErrorRef.current(new Error('WebRTC ICE Connection Failed'));
+                        handleError(new Error('WebRTC ICE Connection Failed'));
                     } else if (pc.iceConnectionState === 'disconnected') {
-                        if (onStatusChangeRef.current) onStatusChangeRef.current('retrying');
+                        onStatusChangeRef.current?.('retrying');
                     } else if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-                        if (onStatusChangeRef.current) onStatusChangeRef.current('online');
+                        onStatusChangeRef.current?.('online');
                     }
                 };
 
-                // 3. Setup track handling
                 pc.ontrack = (event) => {
                     const stream = event.streams[0];
-                    if (video) {
-                        video.srcObject = stream;
-                    }
-                    if (onStreamReadyRef.current) {
-                        onStreamReadyRef.current(stream);
-                    }
-                    if (onStatusChangeRef.current) onStatusChangeRef.current('online');
+                    if (video) video.srcObject = stream;
+                    onStreamReadyRef.current?.(stream);
+                    onStatusChangeRef.current?.('online');
                 };
 
-                // 4. Add transceivers for video and audio (recvonly)
                 pc.addTransceiver('video', { direction: 'recvonly' });
                 pc.addTransceiver('audio', { direction: 'recvonly' });
 
-                // 5. Create and set local description
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
 
-                // 6. Wait for ICE gathering to complete
                 await new Promise<void>((resolve) => {
-                    if (pc.iceGatheringState === 'complete') {
-                        resolve();
-                    } else {
+                    if (pc.iceGatheringState === 'complete') resolve();
+                    else {
                         const checkState = () => {
                             if (pc.iceGatheringState === 'complete') {
                                 pc.removeEventListener('icegatheringstatechange', checkState);
@@ -125,62 +109,42 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                     }
                 });
 
-                // 7. Exchange SDP with MediaMTX using WHEP/application/sdp
                 const response = await fetch(streamUrl, {
                     method: 'POST',
                     body: pc.localDescription!.sdp,
                     headers: { 'Content-Type': 'application/sdp' }
                 });
-                if (!response.ok) {
-                    throw new Error(`MediaMTX WebRTC signaled error: ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`MediaMTX WebRTC error: ${response.status}`);
 
                 const answerSdp = await response.text();
+                await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
 
-                // 8. Set remote description
-                await pc.setRemoteDescription(new RTCSessionDescription({
-                    type: 'answer',
-                    sdp: answerSdp
-                }));
-
-                // 9. Success Timeout & Data Monitoring
-                let lastByteCount = 0;
-                let inactivityTicks = 0;
-                const monitorInterval = setInterval(() => {
-                    const stats = pc.getStats();
-                    stats.then(report => {
-                        report.forEach(stat => {
-                            if (stat.type === 'inbound-rtp' && stat.kind === 'video') {
-                                if (stat.bytesReceived === lastByteCount) {
-                                    inactivityTicks++;
-                                } else {
-                                    inactivityTicks = 0;
-                                    lastByteCount = stat.bytesReceived;
-                                }
-
-                                if (inactivityTicks > 40) { // ~20 seconds of no data
-                                    logger.warn('WebRTC data inactivity detected, failing over...');
-                                    handleError(new Error('WebRTC Data Inactivity'));
-                                    clearInterval(monitorInterval);
-                                }
+                // Monitor inactivity
+                let lastBytes = 0;
+                let ticks = 0;
+                monitorInterval = setInterval(async () => {
+                    if (!pc) return;
+                    const stats = await pc.getStats();
+                    stats.forEach(stat => {
+                        if (stat.type === 'inbound-rtp' && stat.kind === 'video') {
+                            if ((stat as any).bytesReceived === lastBytes) ticks++;
+                            else {
+                                ticks = 0;
+                                lastBytes = (stat as any).bytesReceived;
                             }
-                        });
+                            if (ticks > 40) handleError(new Error('WebRTC Data Inactivity'));
+                        }
                     });
-                }, 500);
+                }, 500) as unknown as number;
 
-                const playTimeout = setTimeout(() => {
-                    if (pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') {
-                        logger.error('WebRTC play timeout - no connection established');
+                // Play timeout
+                playTimeout = setTimeout(() => {
+                    if (!['connected', 'completed'].includes(pc.iceConnectionState)) {
                         handleError(new Error('WebRTC Connection Timeout'));
-                        clearInterval(monitorInterval);
                     }
-                }, 30000);
+                }, 30000) as unknown as number;
 
                 setIsLoading(false);
-                return () => {
-                    clearTimeout(playTimeout);
-                    clearInterval(monitorInterval);
-                };
             } catch (err) {
                 handleError(err as Error);
             }
@@ -190,33 +154,29 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
             logger.error('WebRTC failed', err);
             setHasError(true);
             setIsLoading(false);
-            if (onStatusChange) onStatusChange('failed');
-            if (onError) {
-                onError(err);
-            }
+            onStatusChangeRef.current?.('failed');
+            onErrorRef.current?.(err);
+            cleanup();
         };
 
-        let cleanupFn: (() => void) | undefined;
-        startWebRtc().then(cfn => { cleanupFn = cfn; });
-
-        return () => {
+        const cleanup = () => {
             if (pcRef.current) {
                 pcRef.current.close();
                 pcRef.current = null;
             }
-            if (video) {
-                video.srcObject = null;
-            }
-            if (cleanupFn && typeof cleanupFn === 'function') {
-                cleanupFn();
-            }
+            if (monitorInterval) clearInterval(monitorInterval);
+            if (playTimeout) clearTimeout(playTimeout);
         };
+
+        startWebRtc();
+
+        return () => cleanup();
     }, [streamUrl, initialStream, iceServers]);
 
     useEffect(() => {
         const video = videoRef.current;
         if (video && autoPlay && !isLoading && !hasError) {
-            video.play().catch(err => logger.warn('WebRTC play failed', err));
+            video.play().catch(err => logger.warn('WebRTC autoplay failed', err));
         }
     }, [autoPlay, isLoading, hasError]);
 
@@ -243,8 +203,6 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                     color: '#fff',
                     textAlign: 'center'
                 }}>
-                    <div style={{ marginBottom: '8px' }}>🚀 Connecting ultra-low latency...</div>
-                    <div style={{ fontSize: '12px', opacity: 0.7 }}>WebRTC Handshake</div>
                 </div>
             )}
             {hasError && (

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { Camera, StreamInfo } from '../../types';
+import { Camera } from '../../types';
 import { logger } from '../../utils/logger';
 import { BASE_URL } from '../../api/client';
 import { streamService } from '../../services/apiService';
@@ -54,25 +54,21 @@ const CameraCard: React.FC<CameraCardProps> = ({
         onClick(camera, activeStreamRef.current || undefined);
     };
 
-    // Fetch stream info if using MediaMTX
+    // Fetch MediaMTX stream info if needed
     useEffect(() => {
         if (!camera.streamUrl) {
             setIsLoading(false);
             return;
         }
 
-        // Check if this is a MediaMTX info endpoint
         if (camera.streamUrl.includes('/info')) {
-            // Extract nvrId and channelId from streamUrl
             const match = camera.streamUrl.match(/\/stream\/([^/]+)\/(\d+)\/info/);
             if (match) {
                 const [, nvrId, channelIdStr] = match;
                 const channelId = parseInt(channelIdStr, 10);
-
                 streamService.getStreamInfo(nvrId, channelId)
                     .then(info => {
                         setStreamInfo(info);
-                        // Prefer WebRTC if available and supported
                         if (info.webRtcUrl && window.RTCPeerConnection) {
                             setUseWebRtc(true);
                         }
@@ -85,7 +81,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
         }
     }, [camera.streamUrl]);
 
-    // Play stream based on available protocols
+    // Play stream (HLS or fallback)
     useEffect(() => {
         if (!camera.streamUrl || !videoRef.current) {
             setIsLoading(false);
@@ -93,37 +89,32 @@ const CameraCard: React.FC<CameraCardProps> = ({
         }
 
         const video = videoRef.current;
-        let streamUrl: string;
+        let streamUrl: string | undefined;
         let isHls = false;
 
-        // Determine which stream URL to use
         if (streamInfo?.mediamtxEnabled) {
             if (useWebRtc && streamInfo.webRtcUrl) {
-                // WebRTC will be handled by WebRtcPlayer component
                 setIsLoading(false);
                 return;
             } else if (streamInfo.hlsUrl) {
-                // Use MediaMTX LL-HLS
                 streamUrl = streamInfo.hlsUrl;
                 isHls = true;
             } else {
-                // Fallback to RTSP (won't work in browser, but keep for compatibility)
-                streamUrl = streamInfo.rtspUrl || '';
+                streamUrl = streamInfo.rtspUrl;
             }
         } else {
-            // Check if this is an unresolved MediaMTX info endpoint
-            if (camera.streamUrl.includes('/info')) {
-                // Wait for streamInfo to be fetched
-                setIsLoading(true);
-                return;
+            if (camera.streamUrl.includes('.m3u8') || camera.streamUrl.includes('/stream/')) {
+                streamUrl = `${BASE_URL}${camera.streamUrl}`;
+                isHls = true;
+            } else {
+                streamUrl = `${BASE_URL}${camera.streamUrl}`;
             }
-            // Legacy HLS endpoint
-            streamUrl = `${BASE_URL}${camera.streamUrl}`;
-            isHls = camera.streamUrl.includes('.m3u8') || camera.streamUrl.includes('/stream/');
         }
 
-        if (!streamUrl || (!isHls && !useWebRtc)) {
+        if (!streamUrl) {
+            logger.error(`No valid stream URL for camera ${camera.name}`);
             setIsLoading(false);
+            setHasError(true);
             return;
         }
 
@@ -135,7 +126,13 @@ const CameraCard: React.FC<CameraCardProps> = ({
                 return;
             }
 
-            // Cleanup any previous instance
+            // ✅ TypeScript-safe: ensure streamUrl is defined
+            if (!streamUrl) {
+                setIsLoading(false);
+                setHasError(true);
+                return;
+            }
+
             if (hlsRef.current) {
                 hlsRef.current.destroy();
                 hlsRef.current = null;
@@ -143,28 +140,22 @@ const CameraCard: React.FC<CameraCardProps> = ({
 
             if (Hls.isSupported()) {
                 const hls = new Hls({
-                    // LIVE LOW-LATENCY SETTINGS
                     liveSyncDuration: 1,
                     liveMaxLatencyDuration: 2,
                     maxLiveSyncPlaybackRate: 1.5,
-
-                    // BUFFER CONTROL (CRITICAL)
                     maxBufferLength: 3,
                     maxMaxBufferLength: 5,
                     backBufferLength: 0,
-
-                    // FAST FAILURE RECOVERY
-                    // ALLOW MORE TIME FOR INITIAL GENERATION
                     manifestLoadingMaxRetry: 10,
                     levelLoadingMaxRetry: 10,
                     fragLoadingMaxRetry: 10,
                     manifestLoadingRetryDelay: 2000,
-
                     enableWorker: true
                 });
 
                 hlsRef.current = hls;
 
+                // TypeScript now knows streamUrl is string (not undefined)
                 hls.loadSource(streamUrl);
                 hls.attachMedia(video);
 
@@ -173,7 +164,6 @@ const CameraCard: React.FC<CameraCardProps> = ({
                     setHasError(false);
                     setStreamStatus('online');
 
-                    // FORCE JUMP TO LIVE EDGE
                     const liveEdge = hls.liveSyncPosition;
                     if (liveEdge !== null && !isNaN(liveEdge)) {
                         video.currentTime = liveEdge;
@@ -200,9 +190,8 @@ const CameraCard: React.FC<CameraCardProps> = ({
                         hls.destroy();
                     }
                 });
-
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                // Safari native HLS
+                // TypeScript knows streamUrl is string (not undefined)
                 video.src = streamUrl;
                 video.play().catch(() => { });
                 setIsLoading(false);
@@ -222,7 +211,6 @@ const CameraCard: React.FC<CameraCardProps> = ({
         };
     }, [camera.streamUrl, index, streamInfo, useWebRtc]);
 
-    // Use WebRTC player if available
     const shouldUseWebRtc = streamInfo?.mediamtxEnabled && useWebRtc && streamInfo.webRtcUrl;
 
     return (
@@ -232,8 +220,8 @@ const CameraCard: React.FC<CameraCardProps> = ({
                     {shouldUseWebRtc ? (
                         <WebRtcPlayer
                             streamUrl={streamInfo!.webRtcUrl!}
-                            autoPlay={true}
-                            muted={true}
+                            autoPlay
+                            muted
                             onStreamReady={handleStreamReady}
                             onStatusChange={handleStatusChange}
                             onError={handleWebRtcError}
@@ -255,7 +243,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                         />
                     )}
 
-                    {isLoading && (
+                    {isLoading && !hasError && (
                         <div style={{
                             position: 'absolute',
                             top: '50%',
@@ -263,9 +251,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                             transform: 'translate(-50%, -50%)',
                             color: '#fff',
                             fontSize: '14px'
-                        }}>
-                            Loading...
-                        </div>
+                        }}>Loading...</div>
                     )}
 
                     {hasError && (

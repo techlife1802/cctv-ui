@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import CameraCard from '../CameraCard';
 import { Camera } from '../../types';
 
@@ -17,42 +17,38 @@ const LazyCameraCard: React.FC<LazyCameraCardProps> = ({
     camera,
     onClick,
     index = 0,
-    rootMargin = '100px' // Start loading 100px before entering viewport
+    rootMargin = '100px'
 }) => {
     const [isInView, setIsInView] = useState(false);
     const cardRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        const observer = new IntersectionObserver(
-            (entries) => {
-                entries.forEach((entry) => {
-                    // Update visibility state - load when in view, unload when out
-                    setIsInView(entry.isIntersecting);
-                });
-            },
-            {
-                rootMargin,
-                threshold: 0.1 // Trigger when 10% of the element is visible
+    const handleIntersect = useCallback((entries: IntersectionObserverEntry[]) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting && !isInView) {
+                setIsInView(true);
+            } else if (!entry.isIntersecting && isInView) {
+                setIsInView(false);
             }
-        );
+        });
+    }, [isInView]);
 
-        if (cardRef.current) {
-            observer.observe(cardRef.current);
-        }
+    useEffect(() => {
+        const observer = new IntersectionObserver(handleIntersect, {
+            rootMargin,
+            threshold: 0.1
+        });
+
+        const currentCard = cardRef.current;
+        if (currentCard) observer.observe(currentCard);
 
         return () => {
-            if (cardRef.current) {
-                observer.unobserve(cardRef.current);
-            }
+            if (currentCard) observer.unobserve(currentCard);
         };
-    }, [rootMargin]);
-
-    // Load stream when in view, unload when out of view to free NVR connections
-    const shouldLoadStream = isInView;
+    }, [handleIntersect, rootMargin]);
 
     return (
         <div ref={cardRef} style={{ width: '100%', height: '100%' }}>
-            {shouldLoadStream ? (
+            {isInView ? (
                 <CameraCard
                     camera={camera}
                     onClick={onClick}
@@ -72,7 +68,7 @@ const LazyCameraCard: React.FC<LazyCameraCardProps> = ({
                     }}
                 >
                     <div style={{ textAlign: 'center' }}>
-                        <div style={{ marginBottom: '8px' }}>📹</div>
+                        <div style={{ marginBottom: '8px', fontSize: '24px' }}>📹</div>
                         <div>{camera.name}</div>
                         <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.7 }}>
                             {camera.location}
@@ -85,4 +81,3 @@ const LazyCameraCard: React.FC<LazyCameraCardProps> = ({
 };
 
 export default React.memo(LazyCameraCard);
-
