@@ -3,7 +3,7 @@ import Hls from 'hls.js';
 import { Camera } from '../../types';
 import { logger } from '../../utils/logger';
 import { BASE_URL } from '../../api/client';
-import { streamService } from '../../services/apiService';
+import { cameraService, streamService } from '../../services/apiService';
 import WebRtcPlayer from '../WebRtcPlayer';
 
 interface CameraCardProps {
@@ -71,6 +71,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                         setStreamInfo(info);
                         if (info.webRtcUrl && window.RTCPeerConnection) {
                             setUseWebRtc(true);
+                            setHasError(false); // Reset error if we have new info
                         }
                     })
                     .catch(err => {
@@ -118,7 +119,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
             return;
         }
 
-        const initDelay = index * 200;
+        const initDelay = (index + 1) * 300;
 
         const timeoutId = setTimeout(() => {
             if (!isHls) {
@@ -137,6 +138,8 @@ const CameraCard: React.FC<CameraCardProps> = ({
                 hlsRef.current.destroy();
                 hlsRef.current = null;
             }
+
+            setHasError(false); // Reset error before starting HLS load
 
             if (Hls.isSupported()) {
                 const hls = new Hls({
@@ -236,7 +239,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                             style={{
                                 width: '100%',
                                 height: '100%',
-                                objectFit: 'cover',
+                                objectFit: 'contain',
                                 background: '#000',
                                 display: hasError ? 'none' : 'block'
                             }}

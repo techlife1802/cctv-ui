@@ -26,13 +26,13 @@ const LazyCameraCard: React.FC<LazyCameraCardProps> = ({
         entries.forEach(entry => {
             if (entry.isIntersecting && !isInView) {
                 setIsInView(true);
-            } else if (!entry.isIntersecting && isInView) {
-                setIsInView(false);
             }
         });
     }, [isInView]);
 
     useEffect(() => {
+        if (isInView) return; // Stop observing if already in view
+
         const observer = new IntersectionObserver(handleIntersect, {
             rootMargin,
             threshold: 0.1
@@ -44,7 +44,7 @@ const LazyCameraCard: React.FC<LazyCameraCardProps> = ({
         return () => {
             if (currentCard) observer.unobserve(currentCard);
         };
-    }, [handleIntersect, rootMargin]);
+    }, [handleIntersect, rootMargin, isInView]);
 
     return (
         <div ref={cardRef} style={{ width: '100%', height: '100%' }}>

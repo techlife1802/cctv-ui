@@ -42,10 +42,10 @@ webrtc: yes
 webrtcAddress: :8889
 webrtcAllowOrigins: ["*"]
 webrtcLocalUDPAddress: :8189
-webrtcAdditionalHosts: [192.168.0.172]
+webrtcAdditionalHosts: [192.168.0.173]
 webrtcICEServers2:
   - url: stun:stun.l.google.com:19302
-  - url: turn:192.168.0.172:3478
+  - url: turn:192.168.0.173:3478
     username: mediamtx
     password: mediamtxpassword
 

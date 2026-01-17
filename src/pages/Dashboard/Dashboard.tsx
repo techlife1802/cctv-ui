@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Typography, Select, Modal, Empty, Spin, Collapse, Tag, Badge, Button } from 'antd';
-import { GlobalOutlined, VideoCameraOutlined, CloseOutlined, EyeOutlined, DatabaseOutlined } from '@ant-design/icons';
+import { GlobalOutlined, VideoCameraOutlined, CloseOutlined, EyeOutlined, DatabaseOutlined, CameraOutlined } from '@ant-design/icons';
+import { captureVideoFrame } from '../../utils/screenshotUtils';
 import { Camera, NVR, NvrGroup } from '../../types';
 import { cameraService, nvrService, streamService } from '../../services/apiService';
 import { BASE_URL } from '../../api/client';
@@ -106,12 +107,23 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         resolveStreamUrl();
     }, [open, camera, initialStream, retryCount]);
 
+    const handleScreenshot = () => {
+        captureVideoFrame(modalVideoRef.current, camera?.name || 'camera');
+    };
+
     return (
         <Modal
             title={<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><EyeOutlined /> {camera?.name}</div>}
             open={open}
             onCancel={onClose}
-            footer={null}
+            footer={[
+                <Button key="screenshot" icon={<CameraOutlined />} onClick={handleScreenshot}>
+                    Take Screenshot
+                </Button>,
+                <Button key="close" type="primary" onClick={onClose}>
+                    Close
+                </Button>
+            ]}
             width="80vw"
             centered
             className="fullscreen-video-modal"
@@ -177,15 +189,10 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                         )}
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><Spin size="large" tip="Initializing stream..." /></div>
-                )}
-
-                <div className="camera-overlay" style={{ pointerEvents: 'none', background: 'transparent' }}>
-                    <div className={`status-badge ${streamStatus.toLowerCase()}`}>
-                        <div className="dot" />
-                        {streamStatus}
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                        <Spin size="large" />
                     </div>
-                </div>
+                )}
             </div>
         </Modal>
     );
