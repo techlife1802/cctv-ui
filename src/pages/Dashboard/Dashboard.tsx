@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Typography, Select, Modal, Empty, Spin, Collapse, Tag, Badge, Button } from 'antd';
-import { GlobalOutlined, VideoCameraOutlined, CloseOutlined, EyeOutlined, DatabaseOutlined, CameraOutlined } from '@ant-design/icons';
+import { Typography, Select, Modal, Empty, Spin, Collapse, Tag, Badge, Button, message } from 'antd';
+import { GlobalOutlined, VideoCameraOutlined, CloseOutlined, EyeOutlined, DatabaseOutlined, CameraOutlined, PlayCircleOutlined, StopOutlined } from '@ant-design/icons';
 import { captureVideoFrame } from '../../utils/screenshotUtils';
+import { startRecording, captureStreamFromVideo, RecordingSession } from '../../utils/recordUtils';
 import { Camera, NVR, NvrGroup } from '../../types';
 import { cameraService, nvrService, streamService } from '../../services/apiService';
 import { BASE_URL } from '../../api/client';
@@ -31,6 +32,8 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
     const [retryCount, setRetryCount] = useState(0);
     const [iceServers, setIceServers] = useState<any[]>([]);
     const [streamStatus, setStreamStatus] = useState<string>('loading');
+    const [isRecording, setIsRecording] = useState(false);
+    const recordingSessionRef = useRef<RecordingSession | null>(null);
     const modalVideoRef = useRef<HTMLVideoElement>(null);
 
     const handleStatusChange = useCallback((status: 'loading' | 'online' | 'retrying' | 'failed') => {
@@ -59,6 +62,11 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             setIceServers([]);
             setStreamStatus('loading');
             if (modalVideoRef.current) modalVideoRef.current.srcObject = null;
+            if (recordingSessionRef.current) {
+                recordingSessionRef.current.stop();
+                recordingSessionRef.current = null;
+            }
+            setIsRecording(false);
         }
     }, [open]);
 
@@ -111,12 +119,47 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         captureVideoFrame(modalVideoRef.current, camera?.name || 'camera');
     };
 
+    const handleToggleRecording = () => {
+        if (isRecording) {
+            if (recordingSessionRef.current) {
+                recordingSessionRef.current.stop();
+                recordingSessionRef.current = null;
+                setIsRecording(false);
+                message.success('Recording saved successfully');
+            }
+        } else {
+            let stream: MediaStream | null = initialStream || null;
+
+            // If it's an HLS stream (or no direct stream passed), capture from video element
+            if (!stream && modalVideoRef.current) {
+                stream = captureStreamFromVideo(modalVideoRef.current);
+            }
+
+            if (stream) {
+                const session = startRecording(stream, camera?.name || 'camera');
+                recordingSessionRef.current = session;
+                setIsRecording(true);
+                message.info('Recording started');
+            } else {
+                message.error('Could not start recording: No active stream');
+            }
+        }
+    };
+
     return (
         <Modal
             title={<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><EyeOutlined /> {camera?.name}</div>}
             open={open}
             onCancel={onClose}
             footer={[
+                <Button
+                    key="record"
+                    danger={isRecording}
+                    icon={isRecording ? <StopOutlined /> : <PlayCircleOutlined />}
+                    onClick={handleToggleRecording}
+                >
+                    {isRecording ? 'Stop Recording' : 'Start Recording'}
+                </Button>,
                 <Button key="screenshot" icon={<CameraOutlined />} onClick={handleScreenshot}>
                     Take Screenshot
                 </Button>,
@@ -130,6 +173,12 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             closeIcon={<CloseOutlined style={{ fontSize: '20px', color: '#fff' }} />}
         >
             <div className="modal-video-container" style={{ position: 'relative', width: '100%', height: '70vh', background: '#000' }}>
+                {isRecording && (
+                    <div className="recording-indicator">
+                        <div className="recording-dot" />
+                        REC
+                    </div>
+                )}
                 {open && initialStream ? (
                     <video ref={modalVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 ) : camera && webRtcUrl && !hasError && !useHlsFallback ? (
