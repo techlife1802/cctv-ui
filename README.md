@@ -1,70 +1,88 @@
-# Getting Started with Create React App
+# Professional CCTV Monitoring Dashboard
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A high-performance, real-time surveillance dashboard designed for extreme reliability. Supported features include WebRTC streaming with instant HLS fallback (for H265/slow connections), audio support, localized NVR grouping, and integrated recording/screenshot capabilities.
 
-## Available Scripts
+## 🚀 Key Features
 
-In the project directory, you can run:
+- **Ultra-Reliable Streaming**: Smart WebRTC to HLS fallback (<4s transition).
+- **Audio Support**: Hear your cameras with toggleable audio controls.
+- **Smart Pagination**: 6-camera grid with per-NVR auto-rotation.
+- **Recording & Screenshots**: Capture critical moments directly from the UI.
+- **Low Latency**: Optimized LL-HLS configuration via MediaMTX.
+- **Responsive Design**: Works perfectly on Desktop, iPad, and Mobile.
 
-### `npm start`
+---
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## 💻 Local Installation (Windows One-Click)
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+1.  Download or clone this repository to your local machine.
+2.  Right-click `install.bat` and select **Run as Administrator**.
+3.  The script will:
+    - Install Docker Desktop if you don't have it.
+    - **Build and start** all required services locally.
+4.  Once finished, open `http://localhost:3000` in your browser.
 
-### `npm test`
+---
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## ☁️ Cloud Hosting (Cloudflare Tunnel)
 
-### `npm run build`
+To access your dashboard securely from anywhere without opening firewall ports, follow these steps:
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### 1. Set up Cloudflare Tunnel (Recommended)
+1.  Go to the [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com/).
+2.  Navigate to **Networks** > **Tunnels** and click **Create a Tunnel**.
+3.  Select **Cloudflared** and give it a name (e.g., `cctv-home`).
+4.  Follow the instructions to install the connector on your host machine.
+5.  In the **Public Hostname** tab, add two hostnames:
+    - `cctv.yourdomain.com` -> `http://localhost:3000` (Frontend)
+    - `cctv-api.yourdomain.com` -> `http://localhost:8080` (Backend)
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### 2. Update Environment Variables (`docker-compose.yml`)
+Update all occurrences of the local IP `192.168.0.172` with your professional domain names:
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+**In `coturn` service:**
+- `--external-ip=192.168.0.172` -> Update to your public IP or `cctv.yourdomain.com`.
 
-### `npm run eject`
+**In `backend` service:**
+- `MEDIAMTX_STREAM_BASE_URL` -> `http://cctv-streams.yourdomain.com`
+- `MEDIAMTX_PUBLIC_HOST` -> `cctv-streams.yourdomain.com`.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+**In `frontend` service:**
+- `REACT_APP_API_URL` -> `http://cctv-api.yourdomain.com`
+- `REACT_APP_MEDIAMTX_URL` -> `http://cctv-streams.yourdomain.com`
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+---
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## 🐋 Docker Hub: Build & Upload (Release)
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+If you want to pull images from the cloud (installer-style) instead of building locally, you must first push them to Docker Hub:
 
-## Learn More
+1.  **Login to Docker Hub**:
+    ```bash
+    docker login
+    ```
+2.  **Build and Tag Images**:
+    ```bash
+    # Build Backend
+    docker build -t techlife1802/cctv-backend:latest ./backend
+    # Build Frontend
+    docker build -t techlife1802/cctv-frontend:latest .
+    ```
+3.  **Upload (Push) to Docker Hub**:
+    ```bash
+    docker push techlife1802/cctv-backend:latest
+    docker push techlife1802/cctv-frontend:latest
+    ```
+4.  **Switch to Remote Images**: Update `docker-compose.yml` to use `image: techlife1802/...` instead of `build: ./...`.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+---
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## 🛠 Tech Stack
 
-### Code Splitting
+- **Frontend**: React, TypeScript, Ant Design, HLS.js.
+- **Backend**: Java, Spring Boot, WebFlux.
+- **Streaming**: MediaMTX (RTSP to WebRTC/HLS).
+- **Infrastructure**: Docker, PostgreSQL, Coturn (TURN server).
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## 📄 License
+MIT License - Personal Use Only

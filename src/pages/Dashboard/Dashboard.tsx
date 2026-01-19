@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Typography, Select, Modal, Empty, Spin, Collapse, Tag, Badge, Button, message } from 'antd';
-import { GlobalOutlined, VideoCameraOutlined, CloseOutlined, EyeOutlined, DatabaseOutlined, CameraOutlined, PlayCircleOutlined, StopOutlined } from '@ant-design/icons';
+import { GlobalOutlined, VideoCameraOutlined, CloseOutlined, EyeOutlined, DatabaseOutlined, CameraOutlined, PlayCircleOutlined, StopOutlined, AudioOutlined, AudioMutedOutlined, InteractionOutlined } from '@ant-design/icons';
 import { captureVideoFrame } from '../../utils/screenshotUtils';
 import { startRecording, captureStreamFromVideo, RecordingSession } from '../../utils/recordUtils';
 import { Camera, NVR, NvrGroup } from '../../types';
@@ -22,9 +22,10 @@ interface VideoStreamModalProps {
     camera: Camera | null;
     initialStream?: MediaStream | null;
     onClose: () => void;
+    startTalking?: boolean;
 }
 
-const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, camera, initialStream, onClose }) => {
+const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, camera, initialStream, onClose, startTalking }) => {
     const [webRtcUrl, setWebRtcUrl] = useState<string | null>(null);
     const [hlsUrl, setHlsUrl] = useState<string | null>(null);
     const [useHlsFallback, setUseHlsFallback] = useState(false);
@@ -32,7 +33,9 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
     const [retryCount, setRetryCount] = useState(0);
     const [iceServers, setIceServers] = useState<any[]>([]);
     const [streamStatus, setStreamStatus] = useState<string>('loading');
+    const [isMuted, setIsMuted] = useState(true);
     const [isRecording, setIsRecording] = useState(false);
+    const [isTalking, setIsTalking] = useState(false);
     const recordingSessionRef = useRef<RecordingSession | null>(null);
     const modalVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -44,8 +47,8 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         logger.warn("Modal WebRTC Error:", err);
         if (hlsUrl) {
             setUseHlsFallback(true);
-        } else if (retryCount < 3) {
-            setTimeout(() => setRetryCount(prev => prev + 1), 2000);
+        } else if (retryCount < 1) {
+            setTimeout(() => setRetryCount(prev => prev + 1), 1000);
         } else {
             setHasError(true);
         }
@@ -67,8 +70,12 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                 recordingSessionRef.current = null;
             }
             setIsRecording(false);
+            setIsMuted(true);
+            setIsTalking(false);
+        } else {
+            setIsTalking(!!startTalking);
         }
-    }, [open]);
+    }, [open, startTalking]);
 
     // Attach initial stream
     useEffect(() => {
@@ -78,6 +85,17 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             modalVideoRef.current.play().catch(err => logger.warn('Modal autoplay failed', err));
         }
     }, [open, initialStream]);
+
+    // Handle explicit unmuting for the video element (useful for HLS fallback)
+    useEffect(() => {
+        if (modalVideoRef.current) {
+            modalVideoRef.current.muted = isMuted;
+            // Some browsers require explicit play() after unmuting if it was autoplayed
+            if (!isMuted) {
+                modalVideoRef.current.play().catch(() => { });
+            }
+        }
+    }, [isMuted]);
 
     // Resolve stream URLs (WebRTC / HLS)
     useEffect(() => {
@@ -160,7 +178,28 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                 >
                     {isRecording ? 'Stop Recording' : 'Start Recording'}
                 </Button>,
-                <Button key="screenshot" icon={<CameraOutlined />} onClick={handleScreenshot}>
+                <Button
+                    key="audio"
+                    icon={isMuted ? <AudioMutedOutlined /> : <AudioOutlined />}
+                    onClick={() => setIsMuted(prev => !prev)}
+                    type={!isMuted ? 'primary' : 'default'}
+                >
+                    {isMuted ? 'Unmute' : 'Mute'}
+                </Button>,
+                <Button
+                    key="talk"
+                    type={isTalking ? 'primary' : 'default'}
+                    danger={isTalking}
+                    icon={<InteractionOutlined />}
+                    onClick={() => setIsTalking(prev => !prev)}
+                >
+                    {isTalking ? 'Stop Speaking' : 'Speak to Camera'}
+                </Button>,
+                <Button
+                    key="screenshot"
+                    icon={<CameraOutlined />}
+                    onClick={handleScreenshot}
+                >
                     Take Screenshot
                 </Button>,
                 <Button key="close" type="primary" onClick={onClose}>
@@ -179,14 +218,21 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                         REC
                     </div>
                 )}
-                {open && initialStream ? (
-                    <video ref={modalVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                {isTalking && (
+                    <div className="talking-indicator">
+                        <div className="talking-dot" />
+                        SPEAKING
+                    </div>
+                )}
+                {open && initialStream && !isTalking ? (
+                    <video ref={modalVideoRef} autoPlay muted={isMuted} playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 ) : camera && webRtcUrl && !hasError && !useHlsFallback ? (
                     <WebRtcPlayer
                         streamUrl={webRtcUrl}
                         iceServers={iceServers}
                         autoPlay
-                        muted
+                        muted={isMuted}
+                        isTalking={isTalking}
                         onStatusChange={handleStatusChange}
                         onError={handleWebRtcError}
                     />
@@ -224,7 +270,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                         }}
                         autoPlay
                         controls
-                        muted
+                        muted={isMuted}
                         style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                     />
                 ) : hasError ? (
@@ -247,6 +293,100 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
     );
 });
 
+interface NvrCameraGridProps {
+    cameras: Camera[];
+    onCameraClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean) => void;
+    onStreamReady?: (camera: Camera, stream: MediaStream) => void;
+    isModalOpen: boolean;
+}
+
+const NvrCameraGrid: React.FC<NvrCameraGridProps> = ({ cameras, onCameraClick, onStreamReady, isModalOpen }) => {
+    const [currentPage, setCurrentPage] = useState(0);
+    const [isAutoRotating, setIsAutoRotating] = useState(true);
+    const GRID_SIZE = 6;
+    const ROTATION_MS = 45000;
+
+    const totalPages = Math.ceil(cameras.length / GRID_SIZE);
+
+    // Ensure currentPage is valid if cameras array changes
+    useEffect(() => {
+        if (currentPage >= totalPages && totalPages > 0) {
+            setCurrentPage(0);
+        }
+    }, [cameras.length, totalPages, currentPage]);
+
+    const currentCameras = useMemo(() => {
+        const start = currentPage * GRID_SIZE;
+        return cameras.slice(start, start + GRID_SIZE);
+    }, [cameras, currentPage]);
+
+    const handlePrevPage = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        setCurrentPage((prev) => (prev - 1 + totalPages) % totalPages);
+        setIsAutoRotating(false);
+    }, [totalPages]);
+
+    const handleNextPage = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        setCurrentPage((prev) => (prev + 1) % totalPages);
+        setIsAutoRotating(false);
+    }, [totalPages]);
+
+    const toggleAutoRotation = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsAutoRotating(prev => !prev);
+    }, []);
+
+    useEffect(() => {
+        if (!isAutoRotating || cameras.length <= GRID_SIZE || isModalOpen) return;
+
+        const interval = setInterval(() => {
+            setCurrentPage(prev => (prev + 1) % totalPages);
+        }, ROTATION_MS);
+
+        return () => clearInterval(interval);
+    }, [isAutoRotating, cameras.length, totalPages, isModalOpen]);
+
+    if (!cameras || cameras.length === 0) {
+        return <div style={{ padding: '20px', textAlign: 'center' }}><Empty description="No cameras available for this NVR" /></div>;
+    }
+
+    return (
+        <div className="nvr-grid-container">
+            {totalPages > 1 && (
+                <div className="pagination-controls" onClick={e => e.stopPropagation()}>
+                    <div className="pagination-buttons">
+                        <Button onClick={handlePrevPage} size="small">◀ Previous</Button>
+                        <Button onClick={handleNextPage} size="small">Next ▶</Button>
+                    </div>
+                    <div className="pagination-info">
+                        Page {currentPage + 1} of {totalPages} • Showing {currentCameras.length} of {cameras.length} cameras
+                    </div>
+                    <Button
+                        onClick={toggleAutoRotation}
+                        type={isAutoRotating ? 'primary' : 'default'}
+                        size="small"
+                        className="pagination-auto-rotate"
+                    >
+                        {isAutoRotating ? '⏸ Pause' : '▶ Auto-Rotate'}
+                    </Button>
+                </div>
+            )}
+            <div className="video-grid">
+                {currentCameras.map((camera: Camera, idx: number) => (
+                    <LazyCameraCard
+                        key={`${camera.id}-${idx}`}
+                        camera={camera}
+                        onClick={onCameraClick}
+                        onStreamReady={onStreamReady}
+                        index={idx}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+};
+
 const Dashboard: React.FC = () => {
     const [allCameras, setAllCameras] = useState<Camera[]>([]);
     const [filteredCameras, setFilteredCameras] = useState<Camera[]>([]);
@@ -256,15 +396,11 @@ const Dashboard: React.FC = () => {
     const [selectedLocation, setSelectedLocation] = useState<string | undefined>(undefined);
     const [selectedNvr, setSelectedNvr] = useState<string | undefined>(undefined);
     const [loading, setLoading] = useState<boolean>(true);
-    const [currentPage, setCurrentPage] = useState<number>(0);
-    const [isAutoRotating, setIsAutoRotating] = useState<boolean>(true);
-    const CAMERAS_PER_PAGE = 6;
-    const ROTATION_INTERVAL = 45000;
-    const [videoModal, setVideoModal] = useState<{ open: boolean; camera: Camera | null; stream: MediaStream | null }>({ open: false, camera: null, stream: null });
+    const [videoModal, setVideoModal] = useState<{ open: boolean; camera: Camera | null; stream: MediaStream | null; startTalking?: boolean }>({ open: false, camera: null, stream: null });
     const [activeStreams, setActiveStreams] = useState<Map<string, MediaStream>>(new Map());
 
-    const handleCameraClick = useCallback((camera: Camera, stream?: MediaStream) => {
-        setVideoModal({ open: true, camera, stream: stream || activeStreams.get(String(camera.id)) || null });
+    const handleCameraClick = useCallback((camera: Camera, stream?: MediaStream, startTalking?: boolean) => {
+        setVideoModal({ open: true, camera, stream: stream || activeStreams.get(String(camera.id)) || null, startTalking });
     }, [activeStreams]);
 
     const handleCloseModal = useCallback(() => {
@@ -334,22 +470,6 @@ const Dashboard: React.FC = () => {
             : filteredCameras.length)
         : 0;
 
-    const totalPages = Math.ceil(filteredCameras.length / CAMERAS_PER_PAGE);
-    const startIndex = currentPage * CAMERAS_PER_PAGE;
-    const endIndex = startIndex + CAMERAS_PER_PAGE;
-    const currentCameras = filteredCameras.slice(startIndex, endIndex);
-
-    const handlePrevPage = () => { setCurrentPage((prev) => (prev - 1 + totalPages) % totalPages); setIsAutoRotating(false); };
-    const handleNextPage = () => { setCurrentPage((prev) => (prev + 1) % totalPages); setIsAutoRotating(false); };
-    const toggleAutoRotation = () => setIsAutoRotating(prev => !prev);
-
-    // Auto-rotation effect
-    useEffect(() => {
-        if (!isAutoRotating || filteredCameras.length === 0 || totalPages <= 1) return;
-        const interval = setInterval(() => setCurrentPage(prev => (prev + 1) % totalPages), ROTATION_INTERVAL);
-        return () => clearInterval(interval);
-    }, [isAutoRotating, filteredCameras.length, totalPages]);
-
     return (
         <div className="page-content dashboard-page">
             <div className="dashboard-header">
@@ -403,41 +523,22 @@ const Dashboard: React.FC = () => {
                                         </div>
                                     </div>
                                 }>
-                                    <div className="video-grid nested">
-                                        {group.cameras.map((camera, idx) => (
-                                            <LazyCameraCard key={camera.id} camera={camera} onClick={handleCameraClick} index={idx} />
-                                        ))}
-                                    </div>
+                                    <NvrCameraGrid
+                                        cameras={group.cameras}
+                                        onCameraClick={handleCameraClick}
+                                        onStreamReady={handleStreamReady}
+                                        isModalOpen={videoModal.open}
+                                    />
                                 </Collapse.Panel>
                             ))}
                         </Collapse>
                     ) : (
-                        <>
-                            {totalPages > 1 && (
-                                <div className="pagination-controls">
-                                    <div className="pagination-buttons">
-                                        <Button onClick={handlePrevPage} size="small">◀ Previous</Button>
-                                        <Button onClick={handleNextPage} size="small">Next ▶</Button>
-                                    </div>
-                                    <div className="pagination-info">
-                                        Page {currentPage + 1} of {totalPages} • Showing {currentCameras.length} of {filteredCameras.length} cameras
-                                    </div>
-                                    <Button
-                                        onClick={toggleAutoRotation}
-                                        type={isAutoRotating ? 'primary' : 'default'}
-                                        size="small"
-                                        className="pagination-auto-rotate"
-                                    >
-                                        {isAutoRotating ? '⏸ Pause' : '▶ Auto-Rotate'}
-                                    </Button>
-                                </div>
-                            )}
-                            <div className="video-grid">
-                                {currentCameras.map((camera, idx) => (
-                                    <LazyCameraCard key={camera.id} camera={camera} onClick={handleCameraClick} index={idx} />
-                                ))}
-                            </div>
-                        </>
+                        <NvrCameraGrid
+                            cameras={filteredCameras}
+                            onCameraClick={handleCameraClick}
+                            onStreamReady={handleStreamReady}
+                            isModalOpen={videoModal.open}
+                        />
                     )}
 
                     {(!selectedLocation || !selectedNvr) && (
@@ -452,7 +553,13 @@ const Dashboard: React.FC = () => {
                 </>
             )}
 
-            <VideoStreamModal open={videoModal.open} camera={videoModal.camera} initialStream={videoModal.stream} onClose={handleCloseModal} />
+            <VideoStreamModal
+                open={videoModal.open}
+                camera={videoModal.camera}
+                initialStream={videoModal.stream}
+                onClose={handleCloseModal}
+                startTalking={videoModal.startTalking}
+            />
         </div>
     );
 };

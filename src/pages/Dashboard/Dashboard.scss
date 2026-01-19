@@ -254,7 +254,8 @@
 
     .camera-card {
         width: 100%;
-        height: 100%;
+        aspect-ratio: 16 / 9;
+        height: auto;
         background: #000;
         border-radius: 8px;
         overflow: hidden;
@@ -264,11 +265,6 @@
         transition: transform 0.2s,
             box-shadow 0.2s;
         min-width: 0;
-
-        @media (max-width: 576px) {
-            aspect-ratio: 16/9;
-            height: auto;
-        }
 
         &:hover {
             transform: scale(1.02);
@@ -351,6 +347,27 @@
                     margin: 0;
                     font-size: 11px;
                     opacity: 0.8;
+                }
+            }
+
+            .audio-toggle,
+            .talk-toggle {
+                cursor: pointer;
+                padding: 4px;
+                border-radius: 4px;
+                background: rgba(0, 0, 0, 0.4);
+                transition: all 0.2s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 16px;
+                color: #fff;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+
+                &:hover {
+                    background: var(--primary-color);
+                    transform: scale(1.1);
+                    border-color: var(--primary-color);
                 }
             }
         }
@@ -438,7 +455,8 @@
     .modal-video-container {
         position: relative;
 
-        .recording-indicator {
+        .recording-indicator,
+        .talking-indicator {
             position: absolute;
             top: 20px;
             right: 20px;
@@ -456,12 +474,24 @@
             pointer-events: none;
             animation: fadeIn 0.3s ease;
 
-            .recording-dot {
+            .recording-dot,
+            .talking-dot {
                 width: 10px;
                 height: 10px;
                 background: #ff4d4f;
                 border-radius: 50%;
                 animation: pulse 1s infinite;
+            }
+        }
+
+        .talking-indicator {
+            right: auto;
+            left: 20px;
+            background: rgba(24, 144, 255, 0.6);
+            border-color: rgba(24, 144, 255, 0.3);
+
+            .talking-dot {
+                background: #1890ff;
             }
         }
     }

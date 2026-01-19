@@ -10,6 +10,7 @@ interface WebRtcPlayerProps {
     onError?: (error: Error) => void;
     iceServers?: { urls: string | string[]; username?: string; credential?: string }[];
     onStatusChange?: (status: 'loading' | 'online' | 'retrying' | 'failed') => void;
+    isTalking?: boolean;
 }
 
 const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
@@ -20,10 +21,12 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
     initialStream,
     onError,
     iceServers,
-    onStatusChange
+    onStatusChange,
+    isTalking = false
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const pcRef = useRef<RTCPeerConnection | null>(null);
+    const micStreamRef = useRef<MediaStream | null>(null);
     const [isLoading, setIsLoading] = useState(!initialStream);
     const [hasError, setHasError] = useState(false);
 
@@ -90,7 +93,20 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                 };
 
                 pc.addTransceiver('video', { direction: 'recvonly' });
-                pc.addTransceiver('audio', { direction: 'recvonly' });
+                pc.addTransceiver('audio', { direction: isTalking ? 'sendrecv' : 'recvonly' });
+
+                if (isTalking) {
+                    try {
+                        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        micStreamRef.current = micStream;
+                        micStream.getTracks().forEach(track => {
+                            pc.addTrack(track, micStream);
+                        });
+                    } catch (micErr) {
+                        logger.warn("Microphone access denied or failed", micErr);
+                        // Still proceed with recvonly if mic fails
+                    }
+                }
 
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
@@ -132,7 +148,7 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                                 ticks = 0;
                                 lastBytes = (stat as any).bytesReceived;
                             }
-                            if (ticks > 40) handleError(new Error('WebRTC Data Inactivity'));
+                            if (ticks > 10) handleError(new Error('WebRTC Data Inactivity (timeout 5s)'));
                         }
                     });
                 }, 500) as unknown as number;
@@ -140,9 +156,9 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                 // Play timeout
                 playTimeout = setTimeout(() => {
                     if (!['connected', 'completed'].includes(pc.iceConnectionState)) {
-                        handleError(new Error('WebRTC Connection Timeout'));
+                        handleError(new Error('WebRTC Connection Timeout (4s)'));
                     }
-                }, 30000) as unknown as number;
+                }, 4000) as unknown as number;
 
                 setIsLoading(false);
             } catch (err) {
@@ -166,12 +182,16 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
             }
             if (monitorInterval) clearInterval(monitorInterval);
             if (playTimeout) clearTimeout(playTimeout);
+            if (micStreamRef.current) {
+                micStreamRef.current.getTracks().forEach(t => t.stop());
+                micStreamRef.current = null;
+            }
         };
 
         startWebRtc();
 
         return () => cleanup();
-    }, [streamUrl, initialStream, iceServers]);
+    }, [streamUrl, initialStream, iceServers, isTalking]);
 
     useEffect(() => {
         const video = videoRef.current;
@@ -179,6 +199,12 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
             video.play().catch(err => logger.warn('WebRTC autoplay failed', err));
         }
     }, [autoPlay, isLoading, hasError]);
+
+    useEffect(() => {
+        if (videoRef.current) {
+            videoRef.current.muted = muted;
+        }
+    }, [muted]);
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', background: '#000' }}>
@@ -217,7 +243,7 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                     padding: '20px',
                     textAlign: 'center'
                 }}>
-                    WebRTC unavailable. Falling back to HLS...
+                    Optimizing stream for compatibility...
                 </div>
             )}
         </div>

@@ -30,6 +30,8 @@ logDestinations: [stdout]
 ####################
 rtsp: yes
 rtspAddress: :8554
+readTimeout: 20s
+writeTimeout: 20s
 
 rtmp: yes
 rtmpAddress: :1935
@@ -37,30 +39,23 @@ rtmpAddress: :1935
 hls: yes
 hlsAddress: :8888
 hlsAllowOrigins: ["*"]
+hlsVariant: lowLatency
+hlsSegmentDuration: 2s
+hlsPartDuration: 400ms
+hlsSegmentCount: 5
+hlsDirectory: /dev/shm/hls
 
 webrtc: yes
 webrtcAddress: :8889
-webrtcAllowOrigins: ["*"]
-webrtcLocalUDPAddress: :8189
-webrtcAdditionalHosts: [192.168.0.173]
+webrtcAdditionalHosts: [192.168.0.172]
 webrtcICEServers2:
   - url: stun:stun.l.google.com:19302
-  - url: turn:192.168.0.173:3478
+  - url: turn:192.168.0.172:3478
     username: mediamtx
     password: mediamtxpassword
 
-####################
-# Path Defaults
-####################
 pathDefaults:
   sourceProtocol: tcp
   sourceOnDemand: yes
   sourceOnDemandStartTimeout: 30s
   sourceOnDemandCloseAfter: 30s
-
-####################
-# Paths (DYNAMIC)
-####################
-# Paths are dynamically created via API by the backend
-paths:
-  # No static paths

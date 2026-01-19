@@ -5,10 +5,11 @@ import { logger } from '../../utils/logger';
 import { BASE_URL } from '../../api/client';
 import { cameraService, streamService } from '../../services/apiService';
 import WebRtcPlayer from '../WebRtcPlayer';
+import { AudioOutlined, AudioMutedOutlined, InteractionOutlined } from '@ant-design/icons';
 
 interface CameraCardProps {
     camera: Camera;
-    onClick: (camera: Camera, stream?: MediaStream) => void;
+    onClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean) => void;
     onStreamReady?: (camera: Camera, stream: MediaStream) => void;
     index?: number;
 }
@@ -23,25 +24,28 @@ const CameraCard: React.FC<CameraCardProps> = ({
     const hlsRef = useRef<Hls | null>(null);
     const activeStreamRef = useRef<MediaStream | null>(null);
 
+    const initialLoadDoneRef = useRef(false);
+
     const [isLoading, setIsLoading] = useState(true);
     const [hasError, setHasError] = useState(false);
     const [streamInfo, setStreamInfo] = useState<any | null>(null);
     const [useWebRtc, setUseWebRtc] = useState(false);
-    const [retryCount, setRetryCount] = useState(0);
     const [streamStatus, setStreamStatus] = useState<'loading' | 'online' | 'retrying' | 'failed' | string>(camera.status);
+    const [isMuted, setIsMuted] = useState(true);
 
     const handleStatusChange = React.useCallback((status: 'loading' | 'online' | 'retrying' | 'failed') => {
         setStreamStatus(status);
     }, []);
 
     const handleWebRtcError = React.useCallback((err: Error) => {
-        logger.warn('WebRTC failed, retrying...', err);
-        if (retryCount < 3) {
-            setTimeout(() => setRetryCount(prev => prev + 1), 2000);
-        } else {
-            setUseWebRtc(false);
-        }
-    }, [retryCount]);
+        logger.warn('WebRTC failed, switching to HLS fallback immediately...', err);
+        setUseWebRtc(false);
+    }, []);
+
+    const toggleAudio = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsMuted((prev: boolean) => !prev);
+    };
 
     const handleStreamReady = (stream: MediaStream) => {
         activeStreamRef.current = stream;
@@ -52,6 +56,11 @@ const CameraCard: React.FC<CameraCardProps> = ({
 
     const handleCardClick = () => {
         onClick(camera, activeStreamRef.current || undefined);
+    };
+
+    const handleTalkClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onClick(camera, activeStreamRef.current || undefined, true);
     };
 
     // Fetch MediaMTX stream info if needed
@@ -119,9 +128,11 @@ const CameraCard: React.FC<CameraCardProps> = ({
             return;
         }
 
-        const initDelay = (index + 1) * 300;
+        // Only stagger the INITIAL load. Subsequent fallbacks should be instant.
+        const initDelay = initialLoadDoneRef.current ? 0 : (index + 1) * 200;
 
         const timeoutId = setTimeout(() => {
+            initialLoadDoneRef.current = true;
             if (!isHls) {
                 setIsLoading(false);
                 return;
@@ -143,16 +154,16 @@ const CameraCard: React.FC<CameraCardProps> = ({
 
             if (Hls.isSupported()) {
                 const hls = new Hls({
-                    liveSyncDuration: 1,
-                    liveMaxLatencyDuration: 2,
-                    maxLiveSyncPlaybackRate: 1.5,
-                    maxBufferLength: 3,
-                    maxMaxBufferLength: 5,
+                    liveSyncDuration: 0.5,
+                    liveMaxLatencyDuration: 1.5,
+                    maxLiveSyncPlaybackRate: 2,
+                    maxBufferLength: 2,
+                    maxMaxBufferLength: 4,
                     backBufferLength: 0,
-                    manifestLoadingMaxRetry: 10,
-                    levelLoadingMaxRetry: 10,
-                    fragLoadingMaxRetry: 10,
-                    manifestLoadingRetryDelay: 2000,
+                    manifestLoadingMaxRetry: 20,
+                    levelLoadingMaxRetry: 20,
+                    fragLoadingMaxRetry: 20,
+                    manifestLoadingRetryDelay: 500,
                     enableWorker: true
                 });
 
@@ -214,6 +225,16 @@ const CameraCard: React.FC<CameraCardProps> = ({
         };
     }, [camera.streamUrl, index, streamInfo, useWebRtc]);
 
+    // Handle explicit unmuting
+    useEffect(() => {
+        if (videoRef.current) {
+            videoRef.current.muted = isMuted;
+            if (!isMuted) {
+                videoRef.current.play().catch(() => { });
+            }
+        }
+    }, [isMuted]);
+
     const shouldUseWebRtc = streamInfo?.mediamtxEnabled && useWebRtc && streamInfo.webRtcUrl;
 
     return (
@@ -224,7 +245,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                         <WebRtcPlayer
                             streamUrl={streamInfo!.webRtcUrl!}
                             autoPlay
-                            muted
+                            muted={isMuted}
                             onStreamReady={handleStreamReady}
                             onStatusChange={handleStatusChange}
                             onError={handleWebRtcError}
@@ -232,7 +253,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                     ) : (
                         <video
                             ref={videoRef}
-                            muted
+                            muted={isMuted}
                             autoPlay
                             playsInline
                             preload="metadata"
@@ -284,6 +305,25 @@ const CameraCard: React.FC<CameraCardProps> = ({
                 <div className="camera-info">
                     <h4>{camera.name}</h4>
                     <p>{camera.location}</p>
+                </div>
+                <div className="audio-toggle" onClick={toggleAudio}>
+                    {isMuted ? (
+                        <AudioMutedOutlined title="Unmute" />
+                    ) : (
+                        <AudioOutlined title="Mute" style={{ color: '#1890ff' }} />
+                    )}
+                </div>
+                <div className="talk-toggle" onClick={handleTalkClick} style={{
+                    cursor: 'pointer',
+                    padding: '4px',
+                    borderRadius: '4px',
+                    background: 'rgba(0, 0, 0, 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '16px'
+                }}>
+                    <InteractionOutlined title="Speak to Camera" />
                 </div>
             </div>
         </div>
