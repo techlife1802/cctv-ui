@@ -1,5 +1,5 @@
 import client from '../api/client';
-import { Camera, NVR, LoginRequest, LoginResponse, NvrGroup, User, StreamInfo } from '../types';
+import { Camera, NVR, LoginRequest, LoginResponse, NvrGroup, User, StreamInfo, OnvifCamera } from '../types';
 import { API_ENDPOINTS, APP_CONFIG } from '../constants';
 
 export const authService = {
@@ -30,6 +30,10 @@ export const nvrService = {
     },
     delete: async (id: string): Promise<void> => {
         await client.delete(`${API_ENDPOINTS.NVR}/${id}`);
+    },
+    testConnection: async (nvr: Partial<NVR>): Promise<OnvifCamera[]> => {
+        const response = await client.post(`${API_ENDPOINTS.NVR}/test`, nvr);
+        return response.data;
     },
     getGroupedStreams: async (location: string): Promise<NvrGroup[]> => {
         const response = await client.get(`${API_ENDPOINTS.NVR}/stream?location=${location}`);

@@ -1,21 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Typography, Select, Modal, Empty, Spin, Collapse, Tag, Badge, Button, message } from 'antd';
-import { GlobalOutlined, VideoCameraOutlined, CloseOutlined, EyeOutlined, DatabaseOutlined, CameraOutlined, PlayCircleOutlined, StopOutlined, AudioOutlined, AudioMutedOutlined, InteractionOutlined } from '@ant-design/icons';
+import { Typography, Modal, Empty, Spin, Button, message } from 'antd';
+import {
+    EyeOutlined, CloseOutlined, CameraOutlined, PlayCircleOutlined, StopOutlined,
+    AudioOutlined, AudioMutedOutlined, InteractionOutlined, MenuOutlined,
+    LeftOutlined, RightOutlined, PauseCircleOutlined,
+    FullscreenOutlined, FullscreenExitOutlined, MenuFoldOutlined, MenuUnfoldOutlined
+} from '@ant-design/icons';
 import { captureVideoFrame } from '../../utils/screenshotUtils';
 import { startRecording, captureStreamFromVideo, RecordingSession } from '../../utils/recordUtils';
-import { Camera, NVR, NvrGroup } from '../../types';
-import { cameraService, nvrService, streamService } from '../../services/apiService';
+import { Camera } from '../../types';
+import { cameraService, streamService } from '../../services/apiService';
 import { BASE_URL } from '../../api/client';
 import WebRtcPlayer from '../../components/WebRtcPlayer';
 import Hls from 'hls.js';
-import { APP_CONFIG } from '../../constants';
-import CameraCard from '../../components/CameraCard';
 import LazyCameraCard from '../../components/LazyCameraCard';
+import DashboardSidebar from '../../components/DashboardSidebar/DashboardSidebar';
 import { logger } from '../../utils/logger';
 import './Dashboard.scss';
 
-const { Title } = Typography;
-const { Option } = Select;
+const { Title, Text } = Typography;
 
 interface VideoStreamModalProps {
     open: boolean;
@@ -90,7 +93,6 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
     useEffect(() => {
         if (modalVideoRef.current) {
             modalVideoRef.current.muted = isMuted;
-            // Some browsers require explicit play() after unmuting if it was autoplayed
             if (!isMuted) {
                 modalVideoRef.current.play().catch(() => { });
             }
@@ -147,8 +149,6 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             }
         } else {
             let stream: MediaStream | null = initialStream || null;
-
-            // If it's an HLS stream (or no direct stream passed), capture from video element
             if (!stream && modalVideoRef.current) {
                 stream = captureStreamFromVideo(modalVideoRef.current);
             }
@@ -275,9 +275,9 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                     />
                 ) : hasError ? (
                     <div className="modal-error-overlay" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#fff', gap: '16px' }}>
-                        <Typography.Text style={{ color: '#ff4d4f' }}>
+                        <Text style={{ color: '#ff4d4f' }}>
                             {retryCount >= 3 ? "Stream not found. The camera might be offline." : "Connecting to stream..."}
-                        </Typography.Text>
+                        </Text>
                         {retryCount < 3 && <Spin />}
                         {retryCount >= 3 && (
                             <button onClick={() => { setRetryCount(0); setHasError(false); }} style={{ background: '#1890ff', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}>Retry Connection</button>
@@ -293,22 +293,30 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
     );
 });
 
-interface NvrCameraGridProps {
+interface SelectedCameraGridProps {
     cameras: Camera[];
     onCameraClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean) => void;
     onStreamReady?: (camera: Camera, stream: MediaStream) => void;
     isModalOpen: boolean;
+    isFullscreen: boolean;
+    onToggleFullscreen: () => void;
 }
 
-const NvrCameraGrid: React.FC<NvrCameraGridProps> = ({ cameras, onCameraClick, onStreamReady, isModalOpen }) => {
+const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
+    cameras,
+    onCameraClick,
+    onStreamReady,
+    isModalOpen,
+    isFullscreen,
+    onToggleFullscreen
+}) => {
     const [currentPage, setCurrentPage] = useState(0);
     const [isAutoRotating, setIsAutoRotating] = useState(true);
     const GRID_SIZE = 6;
-    const ROTATION_MS = 45000;
+    const ROTATION_MS = 30000;
 
     const totalPages = Math.ceil(cameras.length / GRID_SIZE);
 
-    // Ensure currentPage is valid if cameras array changes
     useEffect(() => {
         if (currentPage >= totalPages && totalPages > 0) {
             setCurrentPage(0);
@@ -348,30 +356,72 @@ const NvrCameraGrid: React.FC<NvrCameraGridProps> = ({ cameras, onCameraClick, o
     }, [isAutoRotating, cameras.length, totalPages, isModalOpen]);
 
     if (!cameras || cameras.length === 0) {
-        return <div style={{ padding: '20px', textAlign: 'center' }}><Empty description="No cameras available for this NVR" /></div>;
+        return (
+            <div className="empty-grid-container">
+                <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                        <Text type="secondary" style={{ fontSize: '18px' }}>
+                            Please select <b>Cameras</b> from the left panel to begin monitoring
+                        </Text>
+                    }
+                />
+            </div>
+        );
     }
 
     return (
-        <div className="nvr-grid-container">
-            {totalPages > 1 && (
+        <div className={`nvr-grid-container ${isFullscreen ? 'fullscreen' : ''}`}>
+            <div className="grid-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <Title level={4} style={{ margin: 0 }}>Selected Cameras ({cameras.length})</Title>
+                </div>
+
                 <div className="pagination-controls" onClick={e => e.stopPropagation()}>
-                    <div className="pagination-buttons">
-                        <Button onClick={handlePrevPage} size="small">◀ Previous</Button>
-                        <Button onClick={handleNextPage} size="small">Next ▶</Button>
-                    </div>
-                    <div className="pagination-info">
-                        Page {currentPage + 1} of {totalPages} • Showing {currentCameras.length} of {cameras.length} cameras
-                    </div>
+                    {totalPages > 1 && (
+                        <>
+                            <div className="pagination-buttons">
+                                <Button
+                                    onClick={handlePrevPage}
+                                    size="small"
+                                    icon={<LeftOutlined />}
+                                >
+                                    <span className="btn-text">Previous</span>
+                                </Button>
+                                <Button
+                                    onClick={handleNextPage}
+                                    size="small"
+                                    icon={<RightOutlined />}
+                                    style={{ flexDirection: 'row-reverse' }}
+                                >
+                                    <span className="btn-text">Next</span>
+                                </Button>
+                            </div>
+                            <div className="pagination-info">
+                                Page {currentPage + 1} of {totalPages} • Showing {currentCameras.length} cameras
+                            </div>
+                            <Button
+                                onClick={toggleAutoRotation}
+                                type={isAutoRotating ? 'primary' : 'default'}
+                                size="small"
+                                className="pagination-auto-rotate"
+                                icon={isAutoRotating ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                            >
+                                <span className="btn-text">{isAutoRotating ? 'Pause' : 'Auto-Rotate'}</span>
+                            </Button>
+                        </>
+                    )}
+
                     <Button
-                        onClick={toggleAutoRotation}
-                        type={isAutoRotating ? 'primary' : 'default'}
+                        onClick={onToggleFullscreen}
                         size="small"
-                        className="pagination-auto-rotate"
+                        type={isFullscreen ? 'primary' : 'default'}
+                        icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
                     >
-                        {isAutoRotating ? '⏸ Pause' : '▶ Auto-Rotate'}
+                        <span className="btn-text">{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</span>
                     </Button>
                 </div>
-            )}
+            </div>
             <div className="video-grid">
                 {currentCameras.map((camera: Camera, idx: number) => (
                     <LazyCameraCard
@@ -389,15 +439,13 @@ const NvrCameraGrid: React.FC<NvrCameraGridProps> = ({ cameras, onCameraClick, o
 
 const Dashboard: React.FC = () => {
     const [allCameras, setAllCameras] = useState<Camera[]>([]);
-    const [filteredCameras, setFilteredCameras] = useState<Camera[]>([]);
-    const [groupedCameras, setGroupedCameras] = useState<NvrGroup[]>([]);
-    const [locations, setLocations] = useState<string[]>([]);
-    const [allNvrs, setAllNvrs] = useState<NVR[]>([]);
-    const [selectedLocation, setSelectedLocation] = useState<string | undefined>(undefined);
-    const [selectedNvr, setSelectedNvr] = useState<string | undefined>(undefined);
+    const [selectedCameraIds, setSelectedCameraIds] = useState<string[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [videoModal, setVideoModal] = useState<{ open: boolean; camera: Camera | null; stream: MediaStream | null; startTalking?: boolean }>({ open: false, camera: null, stream: null });
     const [activeStreams, setActiveStreams] = useState<Map<string, MediaStream>>(new Map());
+    const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
 
     const handleCameraClick = useCallback((camera: Camera, stream?: MediaStream, startTalking?: boolean) => {
         setVideoModal({ open: true, camera, stream: stream || activeStreams.get(String(camera.id)) || null, startTalking });
@@ -411,147 +459,92 @@ const Dashboard: React.FC = () => {
         setActiveStreams(prev => new Map(prev).set(String(camera.id), stream));
     }, []);
 
-    // Fetch locations and NVRs
-    useEffect(() => {
-        const fetchInitialData = async () => {
-            try {
-                setLoading(true);
-                const fetchedLocations = await nvrService.getLocations();
-                setLocations(fetchedLocations);
-                const fetchedNvrs = await nvrService.getAll();
-                setAllNvrs(fetchedNvrs);
-            } catch (error) {
-                logger.error("Failed to fetch initial data", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchInitialData();
+    const handleSelectionChange = useCallback((ids: string[]) => {
+        setSelectedCameraIds(ids);
+        // Close sidebar on mobile after selection
+        if (window.innerWidth <= 768) {
+            setMobileSidebarOpen(false);
+        }
     }, []);
 
-    // Fetch cameras based on selection
-    useEffect(() => {
-        const fetchFilteredStreams = async () => {
-            if (!selectedLocation || !selectedNvr) {
-                setFilteredCameras([]);
-                setGroupedCameras([]);
-                return;
-            }
+    const toggleSidebar = useCallback(() => {
+        if (window.innerWidth <= 768) {
+            setMobileSidebarOpen(prev => !prev);
+        } else {
+            setSidebarCollapsed(prev => !prev);
+        }
+    }, []);
 
+    const toggleFullscreen = useCallback(() => {
+        setIsFullscreen(prev => !prev);
+        // When entering full screen, also collapse sidebar on desktop
+        if (!isFullscreen && window.innerWidth > 768) {
+            setSidebarCollapsed(true);
+        }
+    }, [isFullscreen]);
+
+    useEffect(() => {
+        const fetchAllCameras = async () => {
             try {
                 setLoading(true);
-                if (selectedNvr === 'All') {
-                    const grouped = await nvrService.getGroupedStreams(selectedLocation);
-                    setGroupedCameras(grouped);
-                    setFilteredCameras([]);
-                } else {
-                    const streams = await cameraService.getStreams(selectedLocation, selectedNvr);
-                    setFilteredCameras(streams);
-                    setGroupedCameras([]);
-                }
+                const cameras = await cameraService.getAll();
+                setAllCameras(cameras);
             } catch (error) {
-                logger.error("Failed to fetch streams", error);
-                setFilteredCameras([]);
-                setGroupedCameras([]);
+                logger.error("Failed to fetch cameras", error);
             } finally {
                 setLoading(false);
             }
         };
-        fetchFilteredStreams();
-    }, [selectedLocation, selectedNvr]);
+        fetchAllCameras();
+    }, []);
 
-    const availableNvrs = allNvrs
-        .filter(nvr => selectedLocation === 'All' || nvr.location === selectedLocation)
-        .sort((a, b) => a.name.localeCompare(b.name));
-
-    const totalActiveFeeds = (selectedLocation && selectedNvr)
-        ? (selectedNvr === 'All'
-            ? groupedCameras.reduce((acc, group) => acc + group.cameras.length, 0)
-            : filteredCameras.length)
-        : 0;
+    const selectedCameras = useMemo(() => {
+        return allCameras.filter(cam => selectedCameraIds.includes(String(cam.id)));
+    }, [allCameras, selectedCameraIds]);
 
     return (
-        <div className="page-content dashboard-page">
-            <div className="dashboard-header">
-                <div className="header-title-container">
-                    <Title level={3} className="page-title">Live Monitoring</Title>
-                    <p className="page-description">{totalActiveFeeds} Active Feeds</p>
-                </div>
-                <div className="selectors-container">
-                    <Select
-                        value={selectedLocation}
-                        onChange={setSelectedLocation}
-                        size="large"
-                        suffixIcon={<GlobalOutlined />}
-                        placeholder="Select Location"
-                        allowClear
-                    >
-                        <Option value={APP_CONFIG.ALL_FILTER}>All Locations</Option>
-                        {locations.map(loc => <Option key={loc} value={loc}>{loc}</Option>)}
-                    </Select>
-                    <Select
-                        value={selectedNvr}
-                        onChange={setSelectedNvr}
-                        size="large"
-                        suffixIcon={<VideoCameraOutlined />}
-                        placeholder="Select NVR"
-                        allowClear
-                        disabled={!selectedLocation}
-                    >
-                        <Option value={APP_CONFIG.ALL_FILTER}>All NVRs</Option>
-                        {availableNvrs.map(nvr => <Option key={nvr.id} value={nvr.id}>{nvr.name}</Option>)}
-                    </Select>
-                </div>
-            </div>
+        <div className={`dashboard-container ${isFullscreen ? 'fullscreen-mode' : ''}`}>
+            <DashboardSidebar
+                cameras={allCameras}
+                selectedCameraIds={selectedCameraIds}
+                onSelectionChange={handleSelectionChange}
+                loading={loading}
+                className={`${mobileSidebarOpen ? 'open' : ''} ${sidebarCollapsed ? 'collapsed' : ''}`}
+            />
 
-            {loading ? (
-                <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <Spin size="large" />
-                </div>
-            ) : (
-                <>
-                    {selectedNvr === 'All' ? (
-                        <Collapse ghost className="nvr-collapse">
-                            {groupedCameras.map(group => (
-                                <Collapse.Panel key={group.nvrId} header={
-                                    <div className="nvr-panel-header">
-                                        <div className="nvr-title"><DatabaseOutlined /><span>{group.nvrName}</span><Badge count={group.cameras.length} color="#1890ff" /></div>
-                                        <div className="nvr-badges">
-                                            <Tag color="cyan">{group.nvrIp}</Tag>
-                                            <Tag color="blue">{group.nvrType}</Tag>
-                                            <Tag color="geekblue">Channel {group.cameras.length}</Tag>
-                                        </div>
-                                    </div>
-                                }>
-                                    <NvrCameraGrid
-                                        cameras={group.cameras}
-                                        onCameraClick={handleCameraClick}
-                                        onStreamReady={handleStreamReady}
-                                        isModalOpen={videoModal.open}
-                                    />
-                                </Collapse.Panel>
-                            ))}
-                        </Collapse>
-                    ) : (
-                        <NvrCameraGrid
-                            cameras={filteredCameras}
-                            onCameraClick={handleCameraClick}
-                            onStreamReady={handleStreamReady}
-                            isModalOpen={videoModal.open}
-                        />
-                    )}
-
-                    {(!selectedLocation || !selectedNvr) && (
-                        <div style={{ textAlign: 'center', marginTop: '100px' }}>
-                            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<Typography.Text type="secondary" style={{ fontSize: '18px' }}>Please select a <b>Location</b> and <b>NVR</b> to begin monitoring</Typography.Text>} />
-                        </div>
-                    )}
-
-                    {selectedLocation && selectedNvr && filteredCameras.length === 0 && groupedCameras.length === 0 && (
-                        <Empty description="No cameras found for the selection" />
-                    )}
-                </>
+            {/* Overlay for mobile */}
+            {mobileSidebarOpen && (
+                <div
+                    className="sidebar-overlay"
+                    onClick={() => setMobileSidebarOpen(false)}
+                />
             )}
+
+            <div className="dashboard-main">
+                {/* Mobile menu button / Desktop collapse button */}
+                <button
+                    className="mobile-menu-button"
+                    onClick={toggleSidebar}
+                    aria-label="Toggle menu"
+                >
+                    {sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                </button>
+
+                {loading ? (
+                    <div className="loading-container">
+                        <Spin size="large" tip="Loading cameras..." />
+                    </div>
+                ) : (
+                    <SelectedCameraGrid
+                        cameras={selectedCameras}
+                        onCameraClick={handleCameraClick}
+                        onStreamReady={handleStreamReady}
+                        isModalOpen={videoModal.open}
+                        isFullscreen={isFullscreen}
+                        onToggleFullscreen={toggleFullscreen}
+                    />
+                )}
+            </div>
 
             <VideoStreamModal
                 open={videoModal.open}

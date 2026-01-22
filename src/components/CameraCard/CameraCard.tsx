@@ -3,9 +3,9 @@ import Hls from 'hls.js';
 import { Camera } from '../../types';
 import { logger } from '../../utils/logger';
 import { BASE_URL } from '../../api/client';
-import { cameraService, streamService } from '../../services/apiService';
+import { streamService } from '../../services/apiService';
 import WebRtcPlayer from '../WebRtcPlayer';
-import { AudioOutlined, AudioMutedOutlined, InteractionOutlined } from '@ant-design/icons';
+import { AudioOutlined, AudioMutedOutlined, InteractionOutlined, ReloadOutlined } from '@ant-design/icons';
 
 interface CameraCardProps {
     camera: Camera;
@@ -32,6 +32,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
     const [useWebRtc, setUseWebRtc] = useState(false);
     const [streamStatus, setStreamStatus] = useState<'loading' | 'online' | 'retrying' | 'failed' | string>(camera.status);
     const [isMuted, setIsMuted] = useState(true);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     const handleStatusChange = React.useCallback((status: 'loading' | 'online' | 'retrying' | 'failed') => {
         setStreamStatus(status);
@@ -63,6 +64,27 @@ const CameraCard: React.FC<CameraCardProps> = ({
         onClick(camera, activeStreamRef.current || undefined, true);
     };
 
+    const handleRefresh = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        logger.info(`Refreshing stream for ${camera.name}`);
+
+        // Clean up existing stream
+        if (hlsRef.current) {
+            hlsRef.current.destroy();
+            hlsRef.current = null;
+        }
+
+        // Reset states
+        setHasError(false);
+        setIsLoading(true);
+        setStreamStatus('loading');
+        setUseWebRtc(false);
+        setStreamInfo(null);
+
+        // Trigger re-fetch by incrementing refresh key
+        setRefreshKey(prev => prev + 1);
+    };
+
     // Fetch MediaMTX stream info if needed
     useEffect(() => {
         if (!camera.streamUrl) {
@@ -89,7 +111,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                     });
             }
         }
-    }, [camera.streamUrl]);
+    }, [camera.streamUrl, refreshKey]);
 
     // Play stream (HLS or fallback)
     useEffect(() => {
@@ -223,7 +245,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                 hlsRef.current = null;
             }
         };
-    }, [camera.streamUrl, index, streamInfo, useWebRtc]);
+    }, [camera.streamUrl, index, streamInfo, useWebRtc, refreshKey]);
 
     // Handle explicit unmuting
     useEffect(() => {
@@ -284,12 +306,44 @@ const CameraCard: React.FC<CameraCardProps> = ({
                             inset: 0,
                             background: '#000',
                             display: 'flex',
+                            flexDirection: 'column',
                             alignItems: 'center',
                             justifyContent: 'center',
+                            gap: '12px',
                             color: '#ff4d4f',
-                            fontSize: '12px'
+                            fontSize: '12px',
+                            zIndex: 10
                         }}>
-                            Stream unavailable
+                            <div>Stream unavailable</div>
+                            <button
+                                onClick={handleRefresh}
+                                className="refresh-button"
+                                style={{
+                                    background: '#1890ff',
+                                    border: 'none',
+                                    color: '#fff',
+                                    padding: '8px 16px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '13px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    transition: 'all 0.2s ease',
+                                    zIndex: 11
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = '#40a9ff';
+                                    e.currentTarget.style.transform = 'scale(1.05)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = '#1890ff';
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                }}
+                            >
+                                <ReloadOutlined spin={isLoading} />
+                                Reconnect
+                            </button>
                         </div>
                     )}
                 </div>
@@ -302,10 +356,10 @@ const CameraCard: React.FC<CameraCardProps> = ({
                     <div className="dot" />
                     {streamStatus}
                 </div>
-                <div className="camera-info">
+                {/* <div className="camera-info">
                     <h4>{camera.name}</h4>
                     <p>{camera.location}</p>
-                </div>
+                </div> */}
                 <div className="audio-toggle" onClick={toggleAudio}>
                     {isMuted ? (
                         <AudioMutedOutlined title="Unmute" />
@@ -313,7 +367,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                         <AudioOutlined title="Mute" style={{ color: '#1890ff' }} />
                     )}
                 </div>
-                <div className="talk-toggle" onClick={handleTalkClick} style={{
+                {/* <div className="talk-toggle" onClick={handleTalkClick} style={{
                     cursor: 'pointer',
                     padding: '4px',
                     borderRadius: '4px',
@@ -324,7 +378,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                     fontSize: '16px'
                 }}>
                     <InteractionOutlined title="Speak to Camera" />
-                </div>
+                </div> */}
             </div>
         </div>
     );

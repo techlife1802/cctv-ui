@@ -10,7 +10,7 @@ import {
     UserOutlined,
     VideoCameraOutlined
 } from '@ant-design/icons';
-import { NVR, User } from '../../types';
+import { NVR, User, OnvifCamera } from '../../types';
 import { nvrService, userService } from '../../services/apiService';
 import { NVR_TYPE, USER_ROLE } from '../../constants';
 import './Configuration.scss';
@@ -30,6 +30,10 @@ const Configuration: React.FC = () => {
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [nvrForm] = Form.useForm();
     const [userForm] = Form.useForm();
+    const [isTesting, setIsTesting] = useState(false);
+    const [discoveryModalOpen, setDiscoveryModalOpen] = useState(false);
+    const [discoveredCameras, setDiscoveredCameras] = useState<OnvifCamera[]>([]);
+    const [testingNvrId, setTestingNvrId] = useState<string | null>(null);
 
     const fetchNvrs = async () => {
         try {
@@ -131,7 +135,26 @@ const Configuration: React.FC = () => {
     const resetNvrModal = () => {
         setIsNvrModalOpen(false);
         setEditingNvr(null);
+        setDiscoveredCameras([]);
         nvrForm.resetFields();
+    };
+
+    const handleTestConnection = async (record: NVR) => {
+        try {
+            setTestingNvrId(record.id);
+            setIsTesting(true);
+            const cameras = await nvrService.testConnection(record);
+            setDiscoveredCameras(cameras);
+            setDiscoveryModalOpen(true);
+            message.success(`Successfully connected! Discovered ${cameras.length} cameras.`);
+        } catch (error: any) {
+            console.error('Test connection error:', error);
+            const errorMsg = error.response?.data?.message || error.message || 'Connection test failed. Please check credentials and ONVIF support.';
+            message.error(errorMsg);
+        } finally {
+            setIsTesting(false);
+            setTestingNvrId(null);
+        }
     };
 
     const resetUserModal = () => {
@@ -208,6 +231,13 @@ const Configuration: React.FC = () => {
             key: 'actions',
             render: (_: any, record: NVR) => (
                 <Space>
+                    <Button
+                        type="text"
+                        icon={<SearchOutlined style={{ color: '#52c41a' }} />}
+                        loading={isTesting && testingNvrId === record.id}
+                        onClick={() => handleTestConnection(record)}
+                        title="Test ONVIF Connection"
+                    />
                     <Button
                         type="text"
                         icon={<EditOutlined style={{ color: '#1677ff' }} />}
@@ -401,6 +431,7 @@ const Configuration: React.FC = () => {
                         name="port"
                         label="Port"
                         rules={[{ required: true, message: 'Please enter Port' }]}
+                        help="Common ONVIF: 80, 8000, 8080. RTSP: 554"
                     >
                         <Input placeholder="8000" />
                     </Form.Item>
@@ -426,7 +457,32 @@ const Configuration: React.FC = () => {
                     >
                         <Input type="number" min={1} max={256} />
                     </Form.Item>
-                    <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 0 }}>
+
+                    <Collapse ghost style={{ marginBottom: '20px' }}>
+                        <Collapse.Panel header="ONVIF Settings (Optional)" key="onvif">
+                            <Form.Item
+                                name="onvifPort"
+                                label="ONVIF Port"
+                                help="Common: 80, 8000, 8080"
+                            >
+                                <Input placeholder="8000" />
+                            </Form.Item>
+                            <Form.Item
+                                name="onvifUsername"
+                                label="ONVIF Username"
+                            >
+                                <Input placeholder="Leave blank to use RTSP username" />
+                            </Form.Item>
+                            <Form.Item
+                                name="onvifPassword"
+                                label="ONVIF Password"
+                            >
+                                <Input.Password placeholder="Leave blank to use RTSP password" />
+                            </Form.Item>
+                        </Collapse.Panel>
+                    </Collapse>
+
+                    <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px', marginBottom: 0 }}>
                         <Space>
                             <Button onClick={resetNvrModal}>Cancel</Button>
                             <Button type="primary" htmlType="submit">
@@ -483,6 +539,47 @@ const Configuration: React.FC = () => {
                         </Space>
                     </Form.Item>
                 </Form>
+            </Modal>
+
+            {/* Discovery Results Modal */}
+            <Modal
+                title="ONVIF Discovery Results"
+                open={discoveryModalOpen}
+                onCancel={() => setDiscoveryModalOpen(false)}
+                width={800}
+                footer={[
+                    <Button key="close" onClick={() => setDiscoveryModalOpen(false)}>
+                        Close
+                    </Button>
+                ]}
+            >
+                <Table
+                    size="small"
+                    dataSource={discoveredCameras}
+                    pagination={false}
+                    rowKey="profileToken"
+                    columns={[
+                        { title: 'Camera Name', dataIndex: 'name', key: 'name' },
+                        { title: 'Channel', dataIndex: 'channel', key: 'channel' },
+                        {
+                            title: 'Stream URI',
+                            dataIndex: 'streamUri',
+                            key: 'streamUri',
+                            ellipsis: true,
+                            render: (text) => <Typography.Text copyable={{ text }}>{text}</Typography.Text>
+                        },
+                        {
+                            title: 'Status',
+                            dataIndex: 'status',
+                            key: 'status',
+                            render: (text) => (
+                                <Tag color={text === 'Online' ? 'success' : 'error'}>
+                                    {text}
+                                </Tag>
+                            )
+                        }
+                    ]}
+                />
             </Modal>
         </div>
     );

@@ -21,4 +21,8 @@ public class NVR {
     private String password;
     private String type; // Hikvision or CP Plus
     private Integer channels = 32;
+
+    private String onvifPort;
+    private String onvifUsername;
+    private String onvifPassword;
 }

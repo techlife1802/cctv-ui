@@ -1,8 +1,10 @@
 package com.cctv.api.controller;
 
 import com.cctv.api.dto.NvrCameraStreamDto;
+import com.cctv.api.dto.OnvifCameraDto;
 import com.cctv.api.model.NVR;
 import com.cctv.api.service.NvrService;
+import com.cctv.api.service.OnvifService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +21,14 @@ import java.util.List;
 public class NvrController {
 
     private final NvrService nvrService;
+    private final OnvifService onvifService;
+
+    @PostMapping("/test")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<OnvifCameraDto> testNvr(@RequestBody NVR nvr) {
+        log.info("Testing NVR connectivity for IP: {}", nvr.getIp());
+        return onvifService.testAndDiscover(nvr);
+    }
 
     @GetMapping
     public List<NVR> getAllNvrs() {

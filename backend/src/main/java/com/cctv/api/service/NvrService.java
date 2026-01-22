@@ -49,6 +49,9 @@ public class NvrService {
         nvr.setPassword(nvrDetails.getPassword());
         nvr.setType(nvrDetails.getType());
         nvr.setChannels(nvrDetails.getChannels());
+        nvr.setOnvifPort(nvrDetails.getOnvifPort());
+        nvr.setOnvifUsername(nvrDetails.getOnvifUsername());
+        nvr.setOnvifPassword(nvrDetails.getOnvifPassword());
         return nvrRepository.save(nvr);
     }
 

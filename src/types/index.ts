@@ -12,6 +12,9 @@ export interface NVR {
     status: CAM_STATUS;
     type: NVR_TYPE;
     channels: number;
+    onvifPort?: string;
+    onvifUsername?: string;
+    onvifPassword?: string;
 }
 
 export interface Camera {
@@ -64,4 +67,12 @@ export interface StreamInfo {
     streamId: string;
     mediamtxEnabled: boolean;
     iceServers?: { urls: string | string[]; username?: string; credential?: string }[];
+}
+
+export interface OnvifCamera {
+    name: string;
+    channel: number;
+    profileToken: string;
+    streamUri: string;
+    status: string;
 }

@@ -24,7 +24,10 @@ CREATE TABLE IF NOT EXISTS nvrs (
     username VARCHAR(255),
     password VARCHAR(255),
     type VARCHAR(255),
-    channels INT DEFAULT 32
+    channels INT DEFAULT 32,
+    onvif_port VARCHAR(255),
+    onvif_username VARCHAR(255),
+    onvif_password VARCHAR(255)
 );
 
 CREATE TABLE IF NOT EXISTS user_audit (

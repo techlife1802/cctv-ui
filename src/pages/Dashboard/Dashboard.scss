@@ -1,518 +1,564 @@
-.dashboard-page {
-    height: 100%;
+.dashboard-container {
     display: flex;
-    flex-direction: column;
+    height: calc(100vh - 64px); // Adjust based on header height
     overflow: hidden;
+    background: var(--bg-primary);
+    position: relative;
 
-    .dashboard-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 12px;
-        position: sticky;
-        z-index: 10;
-        background: var(--video-grid-bg);
-        padding: 0.25rem 1rem;
-        border-bottom: 1px solid var(--border-color);
-        border-radius: 0.5rem;
-        flex: 0 0 auto;
+    &.fullscreen-mode {
+        position: fixed;
+        inset: 0;
+        height: 100vh;
+        z-index: 9999;
+        margin-top: 0 !important;
 
-        @media (max-width: 768px) {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 8px;
-            padding: 0.5rem 0.75rem;
-            margin-bottom: 8px;
+        .dashboard-sidebar {
+            width: 0 !important;
+            flex: 0 0 0 !important;
+            overflow: hidden;
         }
 
-        .header-title-container {
-            .page-title {
-                margin-bottom: 4px !important;
-                font-size: 1.5rem !important;
-                line-height: 1.2 !important;
+        .dashboard-main {
+            padding: 1rem;
+
+            .mobile-menu-button {
+                display: none !important; // Hide menu toggle in full screen
+            }
+
+            .nvr-grid-container {
+                .grid-header {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    margin-bottom: 1rem;
+                    width: 100%;
+
+                    h4 {
+                        display: none; // Hide title in fullscreen
+                    }
+
+                    .pagination-controls {
+                        background: rgba(0, 0, 0, 0.6);
+                        backdrop-filter: blur(4px);
+                        border: 1px solid rgba(255, 255, 255, 0.1);
+
+                        .pagination-info {
+                            display: none;
+                        }
+
+                        // Only show navigation and fullscreen toggle
+                    }
+                }
+            }
+        }
+    }
+
+    .dashboard-sidebar {
+        width: 300px;
+        flex: 0 0 300px;
+        border-right: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        display: flex;
+        flex-direction: column;
+        transition: all 0.3s ease;
+        overflow: hidden;
+
+        &.collapsed {
+            width: 0;
+            flex: 0 0 0;
+            border-right: none;
+        }
+
+        @media (max-width: 768px) {
+            position: fixed;
+            left: -300px;
+            top: 64px;
+            bottom: 0;
+            z-index: 1000;
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+
+            &.open {
+                left: 0;
+                width: 300px; // Reset width for mobile open state
+                flex: 0 0 300px;
+            }
+        }
+
+        // ... rest of sidebar styles
+
+        .sidebar-header {
+            padding: 1.5rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+
+            @media (max-width: 768px) {
+                padding: 1rem 0.75rem;
+            }
+
+            .sidebar-title {
+                margin-bottom: 1rem !important;
+                color: var(--text-primary);
 
                 @media (max-width: 768px) {
                     font-size: 1.1rem !important;
-                    margin-bottom: 2px !important;
                 }
             }
 
-            .page-description {
-                margin: 0 !important;
-                font-size: 0.875rem !important;
-                opacity: 0.7;
-
-                @media (max-width: 768px) {
-                    font-size: 0.75rem !important;
-                }
+            .sidebar-search {
+                border-radius: 6px;
             }
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
 
             @media (max-width: 768px) {
-                width: 100%;
-                text-align: left;
-                margin-bottom: 0;
-            }
-        }
-
-        .selectors-container {
-            display: flex;
-            gap: 16px;
-
-            @media (max-width: 768px) {
-                width: 100%;
-                flex-direction: column;
-                gap: 8px;
-            }
-        }
-
-        .location-selector {
-            width: 200px;
-
-            @media (max-width: 768px) {
-                width: 100% !important;
-                margin-left: 0 !important;
-            }
-        }
-    }
-
-    .pagination-controls {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 12px;
-        padding: 12px 16px;
-        background: var(--video-grid-bg);
-        border-radius: 8px;
-        border: 1px solid var(--border-color);
-
-        @media (max-width: 768px) {
-            flex-direction: column;
-            gap: 8px;
-            padding: 8px 12px;
-            margin-bottom: 8px;
-        }
-
-        .pagination-buttons {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-
-            @media (max-width: 768px) {
-                width: 100%;
-                justify-content: space-between;
-            }
-        }
-
-        .pagination-info {
-            color: #999;
-            font-size: 14px;
-
-            @media (max-width: 768px) {
-                font-size: 11px;
-                text-align: center;
-                order: 2;
-            }
-        }
-
-        .pagination-auto-rotate {
-            @media (max-width: 768px) {
-                width: 100%;
-            }
-        }
-    }
-
-    .nvr-collapse {
-        flex: 1;
-        overflow-y: auto;
-        padding: 0 1rem;
-
-        @media (max-width: 768px) {
-            padding: 0;
-        }
-
-        .ant-collapse-item {
-            background: var(--nvr-panel-bg);
-            margin-bottom: 16px;
-            border-radius: 8px !important;
-            border: 1px solid var(--border-color);
-            overflow: hidden;
-
-            .ant-collapse-header {
-                padding: 12px 16px !important;
-                align-items: center !important;
-                color: var(--text-primary) !important;
-
-                @media (max-width: 576px) {
-                    padding: 12px 8px !important;
-                }
-            }
-        }
-
-        .nvr-panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-            padding-right: 24px;
-
-            @media (max-width: 768px) {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 8px;
-                padding-right: 0;
+                padding: 0.75rem;
             }
 
-            .nvr-title {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                font-size: 16px;
-                font-weight: 600;
+            .sidebar-tree {
+                background: transparent;
                 color: var(--text-primary);
 
-                .anticon {
-                    color: var(--accent-color);
+                .ant-tree-node-content-wrapper:hover {
+                    background-color: var(--bg-hover) !important;
+                }
+
+                .ant-tree-node-selected {
+                    background-color: var(--primary-color-alpha) !important;
                 }
             }
 
-            .nvr-badges {
+            .sidebar-tree-node {
                 display: flex;
+                align-items: center;
                 gap: 8px;
-                flex-wrap: wrap;
-            }
-        }
+                font-size: 14px;
 
-        .ant-collapse-content-box {
-            padding: 16px !important;
-            background: rgba(0, 0, 0, 0.05);
+                .node-icon {
+                    font-size: 16px;
+                }
 
-            @media (max-width: 768px) {
-                padding: 12px 8px !important;
+                .location-icon {
+                    color: #1890ff;
+                }
+
+                .nvr-icon {
+                    color: #52c41a;
+                }
+
+                .camera-icon {
+                    color: #faad14;
+                }
+
+                &.camera-node {
+                    font-size: 13px;
+                }
             }
         }
     }
 
-    .video-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        grid-template-rows: auto;
-        gap: 16px;
-        flex: 1;
-        overflow-y: auto;
-        padding: 0 4px 0 0;
-
-        @media (max-width: 1400px) {
-            grid-template-columns: repeat(3, 1fr);
-            gap: 14px;
-        }
-
-        @media (max-width: 992px) {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-        }
+    // Overlay for mobile sidebar
+    .sidebar-overlay {
+        display: none;
 
         @media (max-width: 768px) {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-        }
-
-        @media (max-width: 576px) {
-            grid-template-columns: 1fr;
-            gap: 12px;
-            padding-right: 4px;
-            padding-bottom: 16px;
-        }
-
-        &.nested {
-            flex: none;
-            overflow-y: visible;
-            padding: 0;
-            margin-bottom: 8px;
-            height: auto;
-            max-height: none;
-            grid-template-rows: auto;
-        }
-
-        // Custom Scrollbar
-        &::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        &::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        &::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 3px;
-        }
-
-        &::-webkit-scrollbar-thumb:hover {
-            background: var(--text-secondary);
+            display: block;
+            position: fixed;
+            inset: 0;
+            top: 64px;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            animation: fadeIn 0.3s ease;
         }
     }
 
-    .camera-card {
-        width: 100%;
-        aspect-ratio: 16 / 9;
-        height: auto;
-        background: #000;
-        border-radius: 8px;
+    .dashboard-main {
+        flex: 1;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        padding: 1.5rem;
+        padding-top: 4rem; // Make room for menu/collapse button on all screens
+        background: var(--video-grid-bg);
         position: relative;
-        cursor: pointer;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: transform 0.2s,
-            box-shadow 0.2s;
-        min-width: 0;
 
-        &:hover {
-            transform: scale(1.02);
-            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
-            z-index: 1;
+        @media (max-width: 768px) {
+            padding: 0.75rem;
+            padding-top: 3.5rem;
+        }
 
-            .camera-overlay {
-                opacity: 1;
+        // Mobile menu button / Desktop collapse button
+        .mobile-menu-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            top: 0.75rem;
+            left: 0.75rem;
+            z-index: 10;
+            width: 40px;
+            height: 40px;
+            background: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transition: all 0.2s ease;
+
+            &:hover {
+                background: #40a9ff;
+                transform: scale(1.05);
+            }
+
+            &:active {
+                transform: scale(0.95);
             }
         }
 
-        img {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
+        .loading-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .empty-grid-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+
+        .nvr-grid-container {
             height: 100%;
-            object-fit: cover;
-            opacity: 0.8;
-            transition: opacity 0.3s;
+            display: flex;
+            flex-direction: column;
+
+            .grid-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 1.5rem;
+                flex: 0 0 auto;
+                gap: 1rem;
+
+                @media (max-width: 768px) {
+                    flex-direction: row; // Keep header items in row on mobile
+                    align-items: center;
+                    margin-bottom: 1rem;
+                    gap: 0.75rem;
+                }
+
+                h4 {
+                    @media (max-width: 768px) {
+                        display: none !important;
+                    }
+                }
+
+                .pagination-controls {
+                    display: flex;
+                    align-items: center;
+                    gap: 1.5rem;
+                    background: var(--bg-secondary);
+                    padding: 8px 16px;
+                    border-radius: 8px;
+                    border: 1px solid var(--border-color);
+                    flex-wrap: wrap;
+
+                    @media (max-width: 768px) {
+                        width: auto;
+                        gap: 0.5rem;
+                        padding: 4px 8px;
+                        flex-direction: row; // Horizontal on mobile too
+                        background: transparent;
+                        border: none;
+                    }
+
+                    .pagination-buttons {
+                        display: flex;
+                        gap: 8px;
+
+                        @media (max-width: 768px) {
+                            width: auto;
+
+                            button {
+                                padding: 4px 8px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+
+                                .anticon {
+                                    margin: 0 !important;
+                                }
+                            }
+                        }
+                    }
+
+                    .btn-text {
+                        @media (max-width: 768px) {
+                            display: none; // Hide text on mobile
+                        }
+                    }
+
+                    .pagination-info {
+                        color: var(--text-secondary);
+                        font-size: 14px;
+
+                        @media (max-width: 768px) {
+                            display: none; // Hide info text on mobile to save space
+                        }
+                    }
+
+                    .pagination-auto-rotate {
+                        @media (max-width: 768px) {
+                            width: auto;
+                            padding: 4px 8px;
+
+                            .anticon {
+                                margin: 0 !important;
+                            }
+                        }
+                    }
+                }
+            }
+
+            .video-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                grid-template-rows: repeat(2, 1fr);
+                gap: 16px;
+                flex: 1;
+                min-height: 0;
+
+                @media (max-width: 1400px) {
+                    grid-template-columns: repeat(2, 1fr);
+                    grid-template-rows: repeat(3, 1fr);
+                }
+
+                // Landscape mode on mobile devices (e.g. iPhone horizontal)
+                @media (max-width: 900px) and (orientation: landscape) {
+                    grid-template-columns: repeat(2, 1fr);
+                    grid-template-rows: auto;
+                    overflow-y: auto;
+                }
+
+                @media (max-width: 900px) and (orientation: portrait) {
+                    grid-template-columns: 1fr;
+                    grid-template-rows: auto;
+                    overflow-y: auto;
+                    gap: 12px;
+                }
+
+                @media (max-width: 576px) {
+                    gap: 10px;
+                }
+            }
+        }
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+// Camera Card and other existing styles preserved and adapted
+.camera-card {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    @media (max-width: 768px) {
+        border-radius: 8px;
+    }
+
+    &:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+
+        @media (max-width: 768px) {
+            transform: none; // Disable hover effect on mobile
         }
 
         .camera-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, transparent 40%, transparent 60%, rgba(0, 0, 0, 0.8) 100%);
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, transparent 40%, transparent 60%, rgba(0, 0, 0, 0.9) 100%);
+        }
+    }
+
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.8;
+    }
+
+    .camera-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to bottom, rgba(0, 0, 0, 0.4) 0%, transparent 40%, transparent 60%, rgba(0, 0, 0, 0.6) 100%);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 1rem;
+        color: #fff;
+
+        @media (max-width: 768px) {
+            padding: 0.75rem;
+        }
+
+        .status-badge {
+            align-self: flex-start;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
             display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 12px;
-            color: #fff;
-            transition: opacity 0.3s;
+            align-items: center;
+            gap: 6px;
+            backdrop-filter: blur(4px);
 
-            .status-badge {
-                align-self: flex-start;
-                background: rgba(82, 196, 26, 0.8);
-                padding: 4px 8px;
-                border-radius: 4px;
+            @media (max-width: 768px) {
                 font-size: 10px;
-                font-weight: bold;
-                text-transform: uppercase;
-                display: flex;
-                align-items: center;
-                gap: 4px;
-
-                &.offline,
-                &.failed {
-                    background: rgba(255, 77, 79, 0.8);
-                }
-
-                &.loading {
-                    background: rgba(24, 144, 255, 0.8);
-                }
-
-                &.retrying {
-                    background: rgba(250, 173, 20, 0.8);
-                }
-
-                .dot {
-                    width: 6px;
-                    height: 6px;
-                    background: #fff;
-                    border-radius: 50%;
-                    animation: pulse 1.5s infinite;
-                }
+                padding: 3px 8px;
             }
 
-            .camera-info {
-                h4 {
-                    margin: 0;
-                    font-size: 14px;
-                    font-weight: 500;
-                    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-                }
-
-                p {
-                    margin: 0;
-                    font-size: 11px;
-                    opacity: 0.8;
-                }
+            &.online {
+                background: rgba(82, 196, 26, 0.2);
+                border: 1px solid rgba(82, 196, 26, 0.4);
+                color: #52c41a;
             }
 
-            .audio-toggle,
-            .talk-toggle {
-                cursor: pointer;
-                padding: 4px;
-                border-radius: 4px;
-                background: rgba(0, 0, 0, 0.4);
-                transition: all 0.2s ease;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 16px;
+            &.offline {
+                background: rgba(255, 77, 79, 0.2);
+                border: 1px solid rgba(255, 77, 79, 0.4);
+                color: #ff4d4f;
+            }
+
+            &.loading {
+                background: rgba(24, 144, 255, 0.2);
+                border: 1px solid rgba(24, 144, 255, 0.4);
+                color: #1890ff;
+            }
+        }
+
+        .camera-info {
+            h4 {
+                margin: 0;
                 color: #fff;
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                font-size: 15px;
+                font-weight: 600;
+                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 
-                &:hover {
-                    background: var(--primary-color);
-                    transform: scale(1.1);
-                    border-color: var(--primary-color);
+                @media (max-width: 768px) {
+                    font-size: 13px;
                 }
+            }
+
+            p {
+                margin: 4px 0 0;
+                font-size: 12px;
+                opacity: 0.8;
+
+                @media (max-width: 768px) {
+                    font-size: 11px;
+                }
+            }
+        }
+
+        .audio-toggle {
+            @media (max-width: 768px) {
+                font-size: 14px;
+                padding: 6px;
             }
         }
     }
 }
 
-@keyframes pulse {
-    0% {
-        opacity: 1;
-        transform: scale(1);
-    }
-
-    50% {
-        opacity: 0.5;
-        transform: scale(0.8);
-    }
-
-    100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-
-// Fullscreen Modal overrides
+// Modal and other global styles remain similar but refactored for the new look
 .fullscreen-video-modal {
-    top: 20px;
+    .ant-modal-content {
+        background: #000;
+        border-radius: 12px;
+        overflow: hidden;
+
+        @media (max-width: 768px) {
+            border-radius: 0;
+        }
+    }
 
     @media (max-width: 768px) {
-        top: 0px;
-        width: 100vw !important;
+        top: 0 !important;
         max-width: 100vw !important;
         margin: 0 !important;
+        padding: 0 !important;
 
         .ant-modal-content {
-            border-radius: 0 !important;
             height: 100vh;
         }
     }
 
-    .ant-modal-content {
-        background: #000;
-        padding: 0;
-        overflow: hidden;
-        border-radius: 8px;
-        box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-    }
-
-    .ant-modal-body {
-        padding: 0 !important;
-        height: 80vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        background: #000;
-
-        @media (max-width: 768px) {
-            height: calc(100vh - 110px);
-        }
-
-        >div {
-            width: 100%;
-            height: 100%;
-        }
-    }
-
-    .ant-modal-footer {
-        padding: 12px 24px;
-        background: var(--bg-secondary);
-        border-top: 1px solid var(--border-color);
-        margin: 0;
-    }
-
-    .ant-modal-close {
-        top: 10px;
-        right: 10px;
-        color: rgba(255, 255, 255, 0.7);
-
-        &:hover {
-            color: #fff;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
-        }
-    }
-
     .modal-video-container {
-        position: relative;
+        border-radius: 8px;
+        overflow: hidden;
 
         .recording-indicator,
         .talking-indicator {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 100;
-            background: rgba(0, 0, 0, 0.6);
-            padding: 4px 12px;
-            border-radius: 4px;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+
+            @media (max-width: 768px) {
+                font-size: 11px;
+                padding: 3px 8px;
+            }
+        }
+    }
+
+    // Fix for mobile modal footer buttons
+    .ant-modal-footer {
+        @media (max-width: 768px) {
             display: flex;
-            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
             gap: 8px;
-            color: #fff;
-            font-weight: 600;
-            font-size: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            pointer-events: none;
-            animation: fadeIn 0.3s ease;
+            padding: 12px;
 
-            .recording-dot,
-            .talking-dot {
-                width: 10px;
-                height: 10px;
-                background: #ff4d4f;
-                border-radius: 50%;
-                animation: pulse 1s infinite;
+            button {
+                margin: 0 !important;
+                flex: 1 1 calc(50% - 8px);
+                min-width: unset;
+                font-size: 12px;
+                height: 36px;
+                padding: 4px 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+
+                .anticon {
+                    font-size: 14px;
+                }
+
+                // Make the Close button full width
+                &:last-child {
+                    flex: 1 1 100%;
+                }
             }
         }
-
-        .talking-indicator {
-            right: auto;
-            left: 20px;
-            background: rgba(24, 144, 255, 0.6);
-            border-color: rgba(24, 144, 255, 0.3);
-
-            .talking-dot {
-                background: #1890ff;
-            }
-        }
-    }
-}
-
-@keyframes pulse {
-    0% {
-        transform: scale(1);
-        opacity: 1;
-        box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.4);
-    }
-
-    70% {
-        transform: scale(1.1);
-        opacity: 0.8;
-        box-shadow: 0 0 0 10px rgba(255, 77, 79, 0);
-    }
-
-    100% {
-        transform: scale(1);
-        opacity: 1;
-        box-shadow: 0 0 0 0 rgba(255, 77, 79, 0);
     }
 }
