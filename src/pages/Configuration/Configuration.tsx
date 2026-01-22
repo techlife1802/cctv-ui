@@ -560,6 +560,7 @@ const Configuration: React.FC = () => {
                     rowKey="profileToken"
                     columns={[
                         { title: 'Camera Name', dataIndex: 'name', key: 'name' },
+                        { title: 'Profile Name', dataIndex: 'profileName', key: 'profileName' },
                         { title: 'Channel', dataIndex: 'channel', key: 'channel' },
                         {
                             title: 'Stream URI',

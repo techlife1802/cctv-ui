@@ -71,6 +71,7 @@ export interface StreamInfo {
 
 export interface OnvifCamera {
     name: string;
+    profileName: string;
     channel: number;
     profileToken: string;
     streamUri: string;

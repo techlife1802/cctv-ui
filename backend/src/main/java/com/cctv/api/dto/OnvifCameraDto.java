@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class OnvifCameraDto {
     private String name;
+    private String profileName;
     private int channel;
     private String profileToken;
     private String streamUri;

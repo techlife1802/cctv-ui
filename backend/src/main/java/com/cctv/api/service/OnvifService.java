@@ -7,14 +7,25 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
-import javax.xml.parsers.DocumentBuilder;
+
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
 import java.io.ByteArrayInputStream;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 
 @Slf4j
 @Service
@@ -22,186 +33,210 @@ public class OnvifService {
 
     private final WebClient webClient;
 
-    public OnvifService(WebClient.Builder webClientBuilder) {
-        this.webClient = webClientBuilder.build();
+    public OnvifService(WebClient.Builder builder) {
+        this.webClient = builder.build();
     }
 
     public List<OnvifCameraDto> testAndDiscover(NVR nvr) {
+
         String ip = nvr.getIp();
-        String port = (nvr.getOnvifPort() != null && !nvr.getOnvifPort().isEmpty()) ? nvr.getOnvifPort() : "80";
-        String user = (nvr.getOnvifUsername() != null && !nvr.getOnvifUsername().isEmpty()) ? nvr.getOnvifUsername()
-                : nvr.getUsername();
-        String pass = (nvr.getOnvifPassword() != null && !nvr.getOnvifPassword().isEmpty()) ? nvr.getOnvifPassword()
-                : nvr.getPassword();
-        String name = nvr.getName() != null ? nvr.getName() : "New NVR";
+        String port = nvr.getOnvifPort() == null ? "80" : nvr.getOnvifPort();
+        String user = nvr.getOnvifUsername() != null ? nvr.getOnvifUsername() : nvr.getUsername();
+        String pass = nvr.getOnvifPassword() != null ? nvr.getOnvifPassword() : nvr.getPassword();
 
-        log.info("Starting ONVIF discovery for NVR: {} at {}:{}", name, ip, port);
-
-        if ("554".equals(port)) {
-            log.warn("Port 554 is typically for RTSP, not ONVIF. Discovery might fail or hang.");
+        // 1️⃣ Try Hikvision ISAPI first
+        List<OnvifCameraDto> hikCameras = discoverHikvision(ip, port, user, pass);
+        if (!hikCameras.isEmpty()) {
+            log.info("Detected Hikvision via ISAPI. Found {} cameras.", hikCameras.size());
+            return hikCameras;
         }
 
-        List<OnvifCameraDto> discoveredCameras = new ArrayList<>();
-        try {
-            // 1. Get Device Information (verifies credentials and ONVIF support)
-            String devInfoResponse = sendSoapRequest(ip, port, user, pass, getDeviceInformationRequest());
-            if (devInfoResponse == null) {
-                throw new RuntimeException("Failed to get device information (check IP/Port and ONVIF support)");
-            }
-
-            // 2. Get Profiles
-            String profilesResponse = sendSoapRequest(ip, port, user, pass, getProfilesRequest());
-            if (profilesResponse == null) {
-                throw new RuntimeException("Failed to get profiles (authentication or service error)");
-            }
-
-            discoveredCameras = parseProfiles(profilesResponse, ip, port, user, pass);
-
-        } catch (Exception e) {
-            log.error("ONVIF discovery failed for {}", ip, e);
-            throw new RuntimeException(e.getMessage());
+        // 2️⃣ Try CP Plus CGI next (with Digest Auth support)
+        List<OnvifCameraDto> cpCameras = discoverCpplus(ip, port, user, pass);
+        if (!cpCameras.isEmpty()) {
+            log.info("Detected CP Plus via CGI. Found {} cameras.", cpCameras.size());
+            return cpCameras;
         }
 
-        return discoveredCameras;
+        log.warn("Discovery failed. No supported vendor API found for IP: {}", ip);
+        return new ArrayList<>();
     }
 
-    private String sendSoapRequest(String ip, String port, String user, String pass, String xmlBody) {
+    // ========================= VENDOR DISCOVERY =========================
+
+    private List<OnvifCameraDto> discoverCpplus(String ip, String port, String user, String pass) {
+        // Correct format: http://ip:port/cgi-bin/... (No user:pass in URL for Digest)
+        String url = String.format(
+                "http://%s:%s/cgi-bin/configManager.cgi?action=getConfig&name=ChannelTitle",
+                ip, port);
+
+        // Use new Digest-aware client
+        String response = sendGetDigest(url, user, pass);
+        List<OnvifCameraDto> list = new ArrayList<>();
+
+        if (response != null && !response.isEmpty()) {
+            // Parse: table.ChannelTitle[0].Name=Cam1
+            try (java.util.Scanner scanner = new java.util.Scanner(response)) {
+                java.util.regex.Pattern p = java.util.regex.Pattern
+                        .compile("table\\.ChannelTitle\\[(\\d+)\\]\\.Name=(.*)");
+                while (scanner.hasNextLine()) {
+                    String line = scanner.nextLine().trim();
+                    java.util.regex.Matcher m = p.matcher(line);
+                    if (m.find()) {
+                        try {
+                            int idx = Integer.parseInt(m.group(1));
+                            String name = m.group(2).trim();
+                            int channel = idx + 1;
+
+                            // CP Plus RTSP
+                            String rtsp = buildCpplusRtsp(ip, user, pass, channel);
+
+                            // Check for "null" name or empty
+                            if (name == null || name.equalsIgnoreCase("null") || name.isEmpty()) {
+                                name = "Camera " + channel;
+                            }
+
+                            list.add(OnvifCameraDto.builder()
+                                    .name(name)
+                                    .profileName("Main Stream")
+                                    .channel(channel)
+                                    .profileToken("Channel_" + channel)
+                                    .streamUri(rtsp)
+                                    .status("Online")
+                                    .build());
+                        } catch (Exception e) {
+                            // ignore individual parse error
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse CP Plus CGI response", e);
+            }
+        }
+        return list;
+    }
+
+    private List<OnvifCameraDto> discoverHikvision(String ip, String port, String user, String pass) {
+        String url = String.format("http://%s:%s/ISAPI/ContentMgmt/InputProxy/channels", ip, port);
+        String response = sendGet(url, user, pass);
+        List<OnvifCameraDto> list = new ArrayList<>();
+
+        if (response != null) {
+            try {
+                Document doc = DocumentBuilderFactory.newInstance()
+                        .newDocumentBuilder()
+                        .parse(new ByteArrayInputStream(response.getBytes()));
+                XPath xp = XPathFactory.newInstance().newXPath();
+
+                NodeList channels = (NodeList) xp.evaluate("//*[local-name()='InputProxyChannel']", doc,
+                        XPathConstants.NODESET);
+                for (int i = 0; i < channels.getLength(); i++) {
+                    String idStr = xp.evaluate(".//*[local-name()='id']", channels.item(i));
+                    String name = xp.evaluate(".//*[local-name()='name']", channels.item(i));
+
+                    if (!idStr.isEmpty()) {
+                        int channelId = Integer.parseInt(idStr);
+                        // Hikvision RTSP: rtsp://user:pass@ip:554/Streaming/Channels/101
+                        // Where 101 means Channel 1, Stream 01 (Main)
+                        String streamUri = String.format("rtsp://%s:%s@%s:554/Streaming/Channels/%d01",
+                                encode(user), encode(pass), ip, channelId);
+
+                        // Fallback name if missing
+                        if (name == null || name.isEmpty()) {
+                            name = "Camera " + channelId;
+                        }
+
+                        list.add(OnvifCameraDto.builder()
+                                .name(name)
+                                .profileName("Main Stream")
+                                .channel(channelId)
+                                .profileToken("Channel_" + channelId)
+                                .streamUri(streamUri)
+                                .status("Online")
+                                .build());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse Hikvision ISAPI response", e);
+            }
+        }
+        return list;
+    }
+
+    // ========================= UTILS =========================
+
+    private String encode(String value) {
         try {
-            String fullXml = wrapInSoapEnvelope(xmlBody, user, pass);
-            String url = String.format("http://%s:%s/onvif/device_service", ip, port);
+            return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8.toString());
+        } catch (Exception e) {
+            return value;
+        }
+    }
 
-            log.debug("Sending SOAP request to {}", url);
+    private String buildCpplusRtsp(String ip, String user, String pass, int ch) {
+        return String.format(
+                "rtsp://%s:%s@%s:554/cam/realmonitor?channel=%d&subtype=0",
+                encode(user), encode(pass), ip, ch);
+    }
 
-            String response = webClient.post()
-                    .uri(url)
-                    .header("Content-Type", "application/soap+xml; charset=utf-8")
-                    .bodyValue(fullXml)
+    private String sendGet(String url, String user, String pass) {
+        log.info("Sending GET request to URL: {}", url);
+        try {
+            // Use URI.create(url) to prevent WebClient from double-encoding parameters
+            // (e.g. %40 -> %2540)
+            java.net.URI uri = java.net.URI.create(url);
+            return webClient.get()
+                    .uri(uri)
+                    .headers(h -> h.setBasicAuth(user, pass))
                     .retrieve()
                     .bodyToMono(String.class)
-                    .timeout(java.time.Duration.ofSeconds(10))
+                    .timeout(Duration.ofSeconds(5))
                     .block();
-            log.info("Onvif Response is {}", response);
-            return response != null ? response : "";
         } catch (Exception e) {
-            log.warn("SOAP request failed for {}: {}", ip, e.getMessage());
-            // Try /onvif/media_service as fallback for profile requests
-            if (xmlBody.contains("GetProfiles") || xmlBody.contains("GetStreamUri")) {
-                try {
-                    String fullXml = wrapInSoapEnvelope(xmlBody, user, pass);
-                    String url = String.format("http://%s:%s/onvif/media_service", ip, port);
-                    log.debug("Trying fallback SOAP request to {}", url);
-                    String response = webClient.post()
-                            .uri(url)
-                            .header("Content-Type", "application/soap+xml; charset=utf-8")
-                            .bodyValue(fullXml)
-                            .retrieve()
-                            .bodyToMono(String.class)
-                            .timeout(java.time.Duration.ofSeconds(10))
-                            .block();
-                    return response != null ? response : "";
-                } catch (Exception ex) {
-                    log.error("Fallback SOAP request also failed for {}", ip, ex.getMessage());
-                }
-            }
+            log.warn("GET failed for {}: {}", url, e.getMessage());
             return null;
         }
     }
 
-    private String wrapInSoapEnvelope(String body, String user, String pass) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
-        sb.append("<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" ");
-        sb.append("xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" ");
-        sb.append("xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" ");
-        sb.append("xmlns:tt=\"http://www.onvif.org/ver10/schema\">");
+    /**
+     * Sends a GET request using Apache HttpClient with Digest Authentication
+     * support.
+     * This is required for CP Plus NVRs which use Digest Auth challenge-response.
+     */
+    private String sendGetDigest(String url, String user, String pass) {
+        log.info("Sending Digest GET request to URL: {}", url);
 
-        if (user != null && !user.isEmpty()) {
-            sb.append("<soap:Header>");
-            sb.append(
-                    "<Security xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\">");
-            sb.append("<UsernameToken>");
-            sb.append("<Username>").append(user).append("</Username>");
-            sb.append(
-                    "<Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText\">");
-            sb.append(pass != null ? pass : "");
-            sb.append("</Password>");
-            sb.append("</UsernameToken>");
-            sb.append("</Security>");
-            sb.append("</soap:Header>");
-        }
+        // 1. Setup the Credentials Provider
+        CredentialsProvider provider = new BasicCredentialsProvider();
+        provider.setCredentials(
+                AuthScope.ANY,
+                new UsernamePasswordCredentials(user, pass));
 
-        sb.append("<soap:Body>").append(body).append("</soap:Body>");
-        sb.append("</soap:Envelope>");
-        return sb.toString();
-    }
+        // 2. Build the client with the provider
+        try (CloseableHttpClient client = HttpClients.custom()
+                .setDefaultCredentialsProvider(provider)
+                .build()) {
 
-    private List<OnvifCameraDto> parseProfiles(String xml, String ip, String port, String user, String pass)
-            throws Exception {
-        List<OnvifCameraDto> cameras = new ArrayList<>();
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setNamespaceAware(true);
-        DocumentBuilder builder = factory.newDocumentBuilder();
-        Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes()));
+            HttpGet request = new HttpGet(url);
 
-        XPathFactory xPathfactory = XPathFactory.newInstance();
-        XPath xpath = xPathfactory.newXPath();
+            // 3. Execute - The client handles the 401 challenge automatically!
+            try (CloseableHttpResponse response = client.execute(request)) {
+                int statusCode = response.getStatusLine().getStatusCode();
+                String result = EntityUtils.toString(response.getEntity());
 
-        // Profiles are usually under Name and token
-        NodeList profileNodes = (NodeList) xpath.evaluate("//*[local-name()='Profiles']", doc, XPathConstants.NODESET);
+                log.info("Digest GET Response Code: {}", statusCode);
 
-        for (int i = 0; i < profileNodes.getLength(); i++) {
-            Object nameObj = xpath.evaluate(".//*[local-name()='Name']", profileNodes.item(i), XPathConstants.STRING);
-            String name = nameObj != null && !nameObj.toString().isEmpty() ? nameObj.toString() : "Camera " + (i + 1);
-
-            Object tokenObj = xpath.evaluate("./@token", profileNodes.item(i), XPathConstants.STRING);
-            String token = tokenObj != null ? tokenObj.toString() : "";
-
-            if (token != null && !token.isEmpty()) {
-                String streamUri = getStreamUri(ip, port, user, pass, token);
-                cameras.add(OnvifCameraDto.builder()
-                        .name(name)
-                        .channel(i + 1)
-                        .profileToken(token)
-                        .streamUri(streamUri)
-                        .status("Online")
-                        .build());
+                if (statusCode >= 200 && statusCode < 300) {
+                    return result;
+                } else {
+                    log.warn("Digest GET failed with status: {}, Body: {}", statusCode, result);
+                    return null;
+                }
             }
+        } catch (Exception e) {
+            log.warn("Digest GET failed for {}: {}", url, e.getMessage());
+            // e.printStackTrace(); // Optional: kept log succinct
+            return null;
         }
-        return cameras;
-    }
-
-    private String getStreamUri(String ip, String port, String user, String pass, String profileToken) {
-        String request = getStreamUriRequest(profileToken);
-        String response = sendSoapRequest(ip, port, user, pass, request);
-        if (response != null) {
-            try {
-                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-                factory.setNamespaceAware(true);
-                DocumentBuilder builder = factory.newDocumentBuilder();
-                Document doc = builder.parse(new ByteArrayInputStream(response.getBytes()));
-                XPath xpath = XPathFactory.newInstance().newXPath();
-                Object uriObj = xpath.evaluate("//*[local-name()='Uri']", doc, XPathConstants.STRING);
-                return uriObj != null ? uriObj.toString() : "";
-            } catch (Exception e) {
-                log.warn("Failed to parse Stream URI for token {}", profileToken);
-            }
-        }
-        return "";
-    }
-
-    private String getDeviceInformationRequest() {
-        return "<tds:GetDeviceInformation/>";
-    }
-
-    private String getProfilesRequest() {
-        return "<trt:GetProfiles/>";
-    }
-
-    private String getStreamUriRequest(String profileToken) {
-        return "<trt:GetStreamUri>" +
-                "<trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</tt:Protocol></tt:Transport></trt:StreamSetup>"
-                +
-                "<trt:ProfileToken>" + profileToken + "</trt:ProfileToken>" +
-                "</trt:GetStreamUri>";
     }
 }
