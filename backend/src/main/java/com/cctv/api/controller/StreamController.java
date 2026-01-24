@@ -2,10 +2,14 @@ package com.cctv.api.controller;
 
 import com.cctv.api.dto.CameraStreamDto;
 import com.cctv.api.dto.StreamInfoDto;
+import com.cctv.api.model.User;
+import com.cctv.api.model.UserRole;
 import com.cctv.api.service.HlsService;
 import com.cctv.api.service.MediaMtxService;
 import com.cctv.api.service.NvrService;
 import com.cctv.api.service.UserAuditService;
+import com.cctv.api.service.UserService;
+import com.cctv.api.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +36,7 @@ public class StreamController {
     private final HlsService hlsService;
     private final MediaMtxService mediaMtxService;
     private final UserAuditService userAuditService;
+    private final UserRepository userRepository;
 
     @GetMapping("/list")
     public List<CameraStreamDto> getStreams(
@@ -45,7 +50,19 @@ public class StreamController {
             userAuditService.logLocationView(principal.getName(), location, request.getRemoteAddr());
         }
 
-        List<CameraStreamDto> streams = nvrService.getCameraStreams(location, nvrId);
+        java.util.Set<String> allowedLocations = null;
+        if (principal != null) {
+            User user = userRepository.findByUsername(principal.getName()).orElse(null);
+            if (user != null && user.getRole() != UserRole.ADMIN) {
+                if (user.getLocations() != null && !user.getLocations().isEmpty()) {
+                    allowedLocations = user.getLocations();
+                } else {
+                    allowedLocations = new java.util.HashSet<>(); // No access
+                }
+            }
+        }
+
+        List<CameraStreamDto> streams = nvrService.getCameraStreams(location, nvrId, allowedLocations);
         log.debug("Found {} streams", streams.size());
         return streams;
     }

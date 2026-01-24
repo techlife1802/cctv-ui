@@ -19,6 +19,7 @@ export enum CAM_STATUS {
 export enum NVR_TYPE {
     HIKVISION = 'Hikvision',
     CP_PLUS = 'CP Plus',
+    ADIVA = 'ADIVA',
 }
 
 export enum USER_ROLE {

@@ -15,6 +15,7 @@ export interface NVR {
     onvifPort?: string;
     onvifUsername?: string;
     onvifPassword?: string;
+    cameras?: any[]; // Backend expects list of Camera entities
 }
 
 export interface Camera {
@@ -41,6 +42,7 @@ export interface User {
     username: string;
     password?: string;
     role: USER_ROLE;
+    locations?: string[];
     token?: string;
 }
 

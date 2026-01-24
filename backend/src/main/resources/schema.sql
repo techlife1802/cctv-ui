@@ -3,9 +3,13 @@ DROP TABLE IF EXISTS cameras;
 CREATE TABLE IF NOT EXISTS cameras (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    stream_path VARCHAR(255) NOT NULL,
+    stream_path VARCHAR(255),
     location VARCHAR(255),
-    nvr_id VARCHAR(255)
+    nvr_id VARCHAR(255),
+    channel INT,
+    stream_uri VARCHAR(512),
+    profile_token VARCHAR(255),
+    status VARCHAR(50)
 );
 
 CREATE TABLE IF NOT EXISTS users (
@@ -13,6 +17,12 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(255)
+);
+
+CREATE TABLE IF NOT EXISTS user_locations (
+    user_id VARCHAR(255) NOT NULL,
+    location VARCHAR(255) NOT NULL,
+    CONSTRAINT fk_user_locations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS nvrs (

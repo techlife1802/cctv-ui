@@ -19,4 +19,9 @@ public class User {
 
     @Enumerated(EnumType.STRING)
     private UserRole role;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_locations", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "location")
+    private java.util.Set<String> locations = new java.util.HashSet<>();
 }

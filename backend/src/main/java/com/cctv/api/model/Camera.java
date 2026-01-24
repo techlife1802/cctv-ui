@@ -17,4 +17,9 @@ public class Camera {
     private String streamPath; // The path name configured in mediamtx.yml
     private String location;
     private String nvrId; // Optional grouping by NVR
+
+    private Integer channel;
+    private String streamUri;
+    private String profileToken;
+    private String status;
 }

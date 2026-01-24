@@ -25,4 +25,7 @@ public class NVR {
     private String onvifPort;
     private String onvifUsername;
     private String onvifPassword;
+
+    @Transient
+    private java.util.List<Camera> cameras;
 }
