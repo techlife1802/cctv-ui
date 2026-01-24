@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Typography, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { authService } from '../../services/apiService';
+import Logo from '../../components/common/Logo';
 import { LoginRequest } from '../../types';
 import './Login.scss';
 
@@ -32,6 +33,9 @@ const Login: React.FC = () => {
     <div className="login-page">
       <div className="login-card">
         <div className="login-header">
+          <div className="logo-container">
+            <Logo />
+          </div>
           <Title level={2} className="title">CAMPUS WATCH</Title>
           <Text className="subtitle">Secure System Access</Text>
         </div>
