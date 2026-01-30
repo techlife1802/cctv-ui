@@ -30,11 +30,12 @@
         background: var(--bg-card);
         border-radius: 8px;
         border: 1px solid var(--border-color);
-        overflow-x: auto;
+        width: 100%;
+        overflow: hidden;
 
         .ant-table-wrapper {
             padding: 0;
-            min-width: 600px;
+            width: 100%;
         }
     }
 

@@ -170,14 +170,14 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             open={open}
             onCancel={onClose}
             footer={[
-                <Button
-                    key="record"
-                    danger={isRecording}
-                    icon={isRecording ? <StopOutlined /> : <PlayCircleOutlined />}
-                    onClick={handleToggleRecording}
-                >
-                    {isRecording ? 'Stop Recording' : 'Start Recording'}
-                </Button>,
+                // <Button
+                //     key="record"
+                //     danger={isRecording}
+                //     icon={isRecording ? <StopOutlined /> : <PlayCircleOutlined />}
+                //     onClick={handleToggleRecording}
+                // >
+                //     {isRecording ? 'Stop Recording' : 'Start Recording'}
+                // </Button>,
                 <Button
                     key="audio"
                     icon={isMuted ? <AudioMutedOutlined /> : <AudioOutlined />}
@@ -186,15 +186,15 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                 >
                     {isMuted ? 'Unmute' : 'Mute'}
                 </Button>,
-                <Button
-                    key="talk"
-                    type={isTalking ? 'primary' : 'default'}
-                    danger={isTalking}
-                    icon={<InteractionOutlined />}
-                    onClick={() => setIsTalking(prev => !prev)}
-                >
-                    {isTalking ? 'Stop Speaking' : 'Speak to Camera'}
-                </Button>,
+                // <Button
+                //     key="talk"
+                //     type={isTalking ? 'primary' : 'default'}
+                //     danger={isTalking}
+                //     icon={<InteractionOutlined />}
+                //     onClick={() => setIsTalking(prev => !prev)}
+                // >
+                //     {isTalking ? 'Stop Speaking' : 'Speak to Camera'}
+                // </Button>,
                 <Button
                     key="screenshot"
                     icon={<CameraOutlined />}
@@ -312,7 +312,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
 }) => {
     const [currentPage, setCurrentPage] = useState(0);
     const [isAutoRotating, setIsAutoRotating] = useState(true);
-    const GRID_SIZE = 6;
+    const GRID_SIZE = 12;
     const ROTATION_MS = 30000;
 
     const totalPages = Math.ceil(cameras.length / GRID_SIZE);

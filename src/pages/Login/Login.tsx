@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Typography, message } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
-import { authService } from '../../services/apiService';
-import { LoginRequest } from '../../types';
-import './Login.scss';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Form, Input, Button, Typography, message } from "antd";
+import { UserOutlined, LockOutlined } from "@ant-design/icons";
+import { authService } from "../../services/apiService";
+import { LoginRequest } from "../../types";
+import "./Login.scss";
+import logo from "../../images/campus_watch_owl_logo.png";
 
 const { Title, Text } = Typography;
 
@@ -17,12 +18,12 @@ const Login: React.FC = () => {
     try {
       const response = await authService.login(values);
       // Store token and user info
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
-      message.success('Login successful!');
-      navigate('/dashboard');
+      localStorage.setItem("token", response.token);
+      localStorage.setItem("user", JSON.stringify(response.user));
+      message.success("Login successful!");
+      navigate("/dashboard");
     } catch (error) {
-      message.error('Invalid credentials');
+      message.error("Invalid credentials");
     } finally {
       setLoading(false);
     }
@@ -31,17 +32,26 @@ const Login: React.FC = () => {
   return (
     <div className="login-page">
       <div className="login-card">
+        <div className="campus-watch-container">
+          <img
+            className="campus-watch-logo"
+            src={logo}
+            alt="Campus Watch Logo"
+          />
+        </div>
+
         <div className="login-header">
-          <Title level={2} className="title">CAMPUS WATCH</Title>
-          <Text className="subtitle">Secure System Access</Text>
+          <Title level={2} className="title">
+            CAMPUS WATCH
+          </Title>
         </div>
 
         <Form
           name="login_form"
           initialValues={{
             remember: true,
-            username: 'admin',
-            password: 'admin'
+            username: "admin",
+            password: "admin",
           }}
           onFinish={onFinish}
           layout="vertical"
@@ -50,7 +60,9 @@ const Login: React.FC = () => {
         >
           <Form.Item
             name="username"
-            rules={[{ required: true, message: 'Please input your access ID!' }]}
+            rules={[
+              { required: true, message: "Please input your access ID!" },
+            ]}
           >
             <Input
               prefix={<UserOutlined className="input-icon" />}
@@ -60,7 +72,7 @@ const Login: React.FC = () => {
 
           <Form.Item
             name="password"
-            rules={[{ required: true, message: 'Please input your password!' }]}
+            rules={[{ required: true, message: "Please input your password!" }]}
           >
             <Input.Password
               prefix={<LockOutlined className="input-icon" />}

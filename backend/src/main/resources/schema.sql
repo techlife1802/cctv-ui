@@ -1,14 +1,14 @@
-DROP TABLE IF EXISTS cameras;
+-- DROP TABLE IF EXISTS cameras;
 
 CREATE TABLE IF NOT EXISTS cameras (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    stream_path VARCHAR(255),
+    stream_path VARCHAR(1024),
     location VARCHAR(255),
     nvr_id VARCHAR(255),
     channel INT,
-    stream_uri VARCHAR(512),
-    profile_token VARCHAR(255),
+    stream_uri VARCHAR(2048),
+    profile_token VARCHAR(512),
     status VARCHAR(50)
 );
 

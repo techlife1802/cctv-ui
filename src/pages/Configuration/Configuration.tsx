@@ -75,7 +75,7 @@ const Configuration: React.FC = () => {
             // Map discovered cameras to the backend Camera entity structure
             const mappedCameras = discoveredCameras.map(cam => ({
                 name: cam.name || cam.profileName,
-                streamPath: cam.streamUri, // Using streamUri as the unique path/token for now if needed, or we rely on channel
+                // Don't set streamPath here - let backend generate it from nvrId_channel
                 location: values.location,
                 channel: cam.channel,
                 streamUri: cam.streamUri,
@@ -222,12 +222,14 @@ const Configuration: React.FC = () => {
             title: 'Location',
             dataIndex: 'location',
             key: 'location',
+            width: 150,
             sorter: (a: NVR, b: NVR) => a.location.localeCompare(b.location),
         },
         {
             title: 'Type',
             dataIndex: 'type',
             key: 'type',
+            width: 120,
             filters: [
                 { text: 'Hikvision', value: 'Hikvision' },
                 { text: 'CP Plus', value: 'CP Plus' },
@@ -238,28 +240,33 @@ const Configuration: React.FC = () => {
             title: 'NVR Name',
             dataIndex: 'name',
             key: 'name',
+            width: 150,
             sorter: (a: NVR, b: NVR) => a.name.localeCompare(b.name),
         },
         {
             title: 'Channels',
             dataIndex: 'channels',
             key: 'channels',
+            width: 100,
             sorter: (a: NVR, b: NVR) => a.channels - b.channels,
         },
         {
             title: 'Static IP',
             dataIndex: 'ip',
             key: 'ip',
+            width: 150,
         },
         {
             title: 'Username',
             dataIndex: 'username',
             key: 'username',
+            width: 150,
         },
         {
             title: 'Password',
             dataIndex: 'password',
             key: 'password',
+            width: 180,
             render: (text: string) => (
                 <Input.Password
                     value={text}
@@ -272,6 +279,8 @@ const Configuration: React.FC = () => {
         {
             title: 'Actions',
             key: 'actions',
+            width: 120,
+            fixed: 'right' as const,
             render: (_: any, record: NVR) => (
                 <Space>
                     <Button
@@ -295,12 +304,14 @@ const Configuration: React.FC = () => {
             title: 'Username',
             dataIndex: 'username',
             key: 'username',
+            width: 150,
             sorter: (a: User, b: User) => a.username.localeCompare(b.username),
         },
         {
             title: 'Role',
             dataIndex: 'role',
             key: 'role',
+            width: 120,
             filters: [
                 { text: 'ADMIN', value: 'ADMIN' },
                 { text: 'USER', value: 'USER' },
@@ -316,6 +327,7 @@ const Configuration: React.FC = () => {
             title: 'Locations',
             dataIndex: 'locations',
             key: 'locations',
+            width: 300,
             render: (locs: string[]) => (
                 <>
                     {locs && locs.length > 0 ? (
@@ -329,6 +341,7 @@ const Configuration: React.FC = () => {
         {
             title: 'Actions',
             key: 'actions',
+            width: 120,
             render: (_: any, record: User) => (
                 <Space>
                     <Button
@@ -391,6 +404,8 @@ const Configuration: React.FC = () => {
                             columns={nvrColumns}
                             dataSource={filteredNvrData}
                             loading={loadingNvrs}
+                            scroll={{ x: 1200 }}
+                            pagination={{ pageSize: 4, showSizeChanger: false }}
                         />
                     </div>
                 </Collapse.Panel>
@@ -426,6 +441,8 @@ const Configuration: React.FC = () => {
                             columns={userColumns}
                             dataSource={filteredUserData}
                             loading={loadingUsers}
+                            scroll={{ x: 800 }}
+                            pagination={{ pageSize: 4, showSizeChanger: false }}
                         />
                     </div>
                 </Collapse.Panel>

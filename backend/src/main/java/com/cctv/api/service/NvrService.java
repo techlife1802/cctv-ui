@@ -137,18 +137,13 @@ public class NvrService {
 
                     // Use available stream info
                     String proxyUrl;
-                    // Ideally use streamPath if set, or fall back to channel-based convention
-                    String pathName = cam.getStreamPath();
-                    if (pathName == null || pathName.isEmpty()) {
-                        // usage of channel if streamPath is missing
-                        int ch = (cam.getChannel() != null) ? cam.getChannel() : 1;
-                        pathName = nvr.getId() + "_" + ch;
-                    }
+                    int ch = (cam.getChannel() != null) ? cam.getChannel() : 1;
 
                     if (mediaMtxService.isEnabled()) {
-                        proxyUrl = String.format("/api/stream/%s/info", pathName);
+                        proxyUrl = String.format("/api/stream/%s/%d/info", nvr.getId(), ch);
                     } else {
-                        proxyUrl = String.format("/api/stream/%s/%s", pathName, AppConstants.HLS_PLAYLIST_NAME);
+                        proxyUrl = String.format("/api/stream/%s/%d/%s", nvr.getId(), ch,
+                                AppConstants.HLS_PLAYLIST_NAME);
                     }
 
                     camDto.setStreamUrl(proxyUrl);
@@ -235,16 +230,13 @@ public class NvrService {
                             camDto.setThumbnail(null);
 
                             String proxyUrl;
-                            String pathName = cam.getStreamPath();
-                            if (pathName == null || pathName.isEmpty()) {
-                                int ch = (cam.getChannel() != null) ? cam.getChannel() : 1;
-                                pathName = nvr.getId() + "_" + ch;
-                            }
+                            int ch = (cam.getChannel() != null) ? cam.getChannel() : 1;
 
                             if (mediaMtxService.isEnabled()) {
-                                proxyUrl = String.format("/api/stream/%s/info", pathName);
+                                proxyUrl = String.format("/api/stream/%s/%d/info", nvr.getId(), ch);
                             } else {
-                                proxyUrl = String.format("/api/stream/%s/%s", pathName, AppConstants.HLS_PLAYLIST_NAME);
+                                proxyUrl = String.format("/api/stream/%s/%d/%s", nvr.getId(), ch,
+                                        AppConstants.HLS_PLAYLIST_NAME);
                             }
                             camDto.setStreamUrl(proxyUrl);
                             camDto.setLocation(cam.getLocation() != null ? cam.getLocation() : nvr.getLocation());
