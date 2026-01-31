@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Typography, Modal, Empty, Spin, Button, message } from 'antd';
+import { Typography, Modal, Empty, Spin, Button, message, Select } from 'antd';
 import {
     EyeOutlined, CloseOutlined, CameraOutlined, PlayCircleOutlined, StopOutlined,
     AudioOutlined, AudioMutedOutlined, InteractionOutlined, MenuOutlined,
@@ -312,10 +312,10 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
 }) => {
     const [currentPage, setCurrentPage] = useState(0);
     const [isAutoRotating, setIsAutoRotating] = useState(true);
-    const GRID_SIZE = 12;
+    const [gridSize, setGridSize] = useState(12);
     const ROTATION_MS = 30000;
 
-    const totalPages = Math.ceil(cameras.length / GRID_SIZE);
+    const totalPages = Math.ceil(cameras.length / gridSize);
 
     useEffect(() => {
         if (currentPage >= totalPages && totalPages > 0) {
@@ -324,9 +324,9 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
     }, [cameras.length, totalPages, currentPage]);
 
     const currentCameras = useMemo(() => {
-        const start = currentPage * GRID_SIZE;
-        return cameras.slice(start, start + GRID_SIZE);
-    }, [cameras, currentPage]);
+        const start = currentPage * gridSize;
+        return cameras.slice(start, start + gridSize);
+    }, [cameras, currentPage, gridSize]);
 
     const handlePrevPage = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
@@ -346,7 +346,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
     }, []);
 
     useEffect(() => {
-        if (!isAutoRotating || cameras.length <= GRID_SIZE || isModalOpen) return;
+        if (!isAutoRotating || cameras.length <= gridSize || isModalOpen) return;
 
         const interval = setInterval(() => {
             setCurrentPage(prev => (prev + 1) % totalPages);
@@ -375,6 +375,21 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
             <div className="grid-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <Title level={4} style={{ margin: 0 }}>Selected Cameras ({cameras.length})</Title>
+                    <Select
+                        value={gridSize}
+                        style={{ width: 100 }}
+                        onChange={(value) => {
+                            setGridSize(value);
+                            setCurrentPage(0);
+                        }}
+                        options={[
+                            { value: 4, label: '4 View' },
+                            { value: 6, label: '6 View' },
+                            { value: 8, label: '8 View' },
+                            { value: 12, label: '12 View' },
+                        ]}
+                        onClick={e => e.stopPropagation()}
+                    />
                 </div>
 
                 <div className="pagination-controls" onClick={e => e.stopPropagation()}>

@@ -330,10 +330,11 @@
             .video-grid {
                 display: grid;
                 grid-template-columns: repeat(3, 1fr);
-                grid-template-rows: repeat(2, 1fr);
+                // grid-template-rows: repeat(2, 1fr); // Allow rows to flow naturally
                 gap: 16px;
                 flex: 1;
                 min-height: 0;
+                overflow-y: auto; // Enable scroll for overflow
 
                 @media (max-width: 1400px) {
                     grid-template-columns: repeat(2, 1fr);

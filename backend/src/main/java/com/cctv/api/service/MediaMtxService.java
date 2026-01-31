@@ -133,6 +133,9 @@ public class MediaMtxService {
                 });
     }
 
+    @Value("${mediamtx.webrtc.base.url:}")
+    private String webrtcBaseUrl;
+
     /**
      * Get stream information for a pre-configured path
      */
@@ -146,32 +149,35 @@ public class MediaMtxService {
         String pathName = getPathName(nvrId, channelId);
 
         String host = "localhost";
-
-        // 1. Priority: Explicit public host configuration (crucial for remote access)
+        // Resolve host for fallbacks or ICE candidates
         if (publicHost != null && !publicHost.isEmpty()) {
             host = publicHost;
-        }
-        // 2. Secondary: Explicit hostname from request if it seems valid
-        else if (hostName != null && !hostName.isEmpty()
+        } else if (hostName != null && !hostName.isEmpty()
                 && !hostName.equals("db") && !hostName.equals("backend") && !hostName.equals("mediamtx")) {
             host = hostName;
         }
-        // 3. Fallback: Inferred from streamBaseUrl
-        else if (streamBaseUrl.contains("://")) {
-            try {
-                java.net.URL url = new java.net.URL(streamBaseUrl);
-                String urlHost = url.getHost();
-                if (urlHost != null && !urlHost.equalsIgnoreCase("localhost") && !urlHost.equals("127.0.0.1")) {
-                    host = urlHost;
-                }
-            } catch (Exception e) {
-                log.warn("Failed to parse streamBaseUrl: {}", streamBaseUrl);
-            }
+
+        // Generate HLS URL using streamBaseUrl
+        String hlsUrl;
+        if (streamBaseUrl.endsWith("/")) {
+            hlsUrl = streamBaseUrl + pathName + "/index.m3u8";
+        } else {
+            hlsUrl = streamBaseUrl + "/" + pathName + "/index.m3u8";
         }
 
-        // Clean URLs (no query parameters as path is now server-side configured)
-        String webRtcUrl = String.format("http://%s:%s/%s/whep", host, webrtcPort, pathName);
-        String hlsUrl = String.format("http://%s:%s/%s/index.m3u8", host, hlsPort, pathName);
+        // Generate WebRTC URL
+        String webRtcUrl;
+        if (webrtcBaseUrl != null && !webrtcBaseUrl.isEmpty()) {
+            // Use configured WebRTC base URL
+            if (webrtcBaseUrl.endsWith("/")) {
+                webRtcUrl = webrtcBaseUrl + pathName + "/whep";
+            } else {
+                webRtcUrl = webrtcBaseUrl + "/" + pathName + "/whep";
+            }
+        } else {
+            // Fallback to legacy behavior (http + publicHost + port)
+            webRtcUrl = String.format("http://%s:%s/%s/whep", host, webrtcPort, pathName);
+        }
 
         log.debug("Generated API-driven MediaMTX stream URLs for {}: WebRTC={}, HLS={}",
                 streamId, webRtcUrl, hlsUrl);
@@ -180,8 +186,9 @@ public class MediaMtxService {
         java.util.List<StreamInfoDto.IceServer> iceServers = new java.util.ArrayList<>();
         iceServers.add(new StreamInfoDto.IceServer(java.util.List.of("stun:stun.l.google.com:19302"), null, null));
 
-        // Add TURN server using our public host or request host
-        String turnHost = host;
+        // Add TURN server using our public host (must be reachable via UDP/TCP)
+        // Use publicHost if set, otherwise inferred host
+        String turnHost = (publicHost != null && !publicHost.isEmpty()) ? publicHost : host;
         iceServers.add(new StreamInfoDto.IceServer(
                 java.util.List.of("turn:" + turnHost + ":3478"),
                 "mediamtx",

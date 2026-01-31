@@ -135,11 +135,18 @@ const CameraCard: React.FC<CameraCardProps> = ({
                 streamUrl = streamInfo.rtspUrl;
             }
         } else {
-            if (camera.streamUrl.includes('.m3u8') || camera.streamUrl.includes('/stream/')) {
-                streamUrl = `${BASE_URL}${camera.streamUrl}`;
-                isHls = true;
+            // Fallback logic: Only use the URL directly if it's NOT an info URL
+            if (!camera.streamUrl.includes('/info')) {
+                if (camera.streamUrl.includes('.m3u8') || camera.streamUrl.includes('/stream/')) {
+                    streamUrl = `${BASE_URL}${camera.streamUrl}`;
+                    isHls = true;
+                } else {
+                    streamUrl = `${BASE_URL}${camera.streamUrl}`;
+                }
             } else {
-                streamUrl = `${BASE_URL}${camera.streamUrl}`;
+                // It is an info URL but streamInfo is not enabled/ready?
+                // Actually if it IS an info URL, we must wait for streamInfo.
+                // If streamInfo failed, we might have an issue, but we can't play the info URL.
             }
         }
 
