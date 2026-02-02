@@ -8,13 +8,14 @@ import {
 } from '@ant-design/icons';
 import { captureVideoFrame } from '../../utils/screenshotUtils';
 import { startRecording, captureStreamFromVideo, RecordingSession } from '../../utils/recordUtils';
-import { Camera } from '../../types';
+import { Camera, CAM_STATUS } from '../../types';
 import { cameraService, streamService } from '../../services/apiService';
 import { BASE_URL } from '../../api/client';
 import WebRtcPlayer from '../../components/WebRtcPlayer';
 import Hls from 'hls.js';
 import LazyCameraCard from '../../components/LazyCameraCard';
 import DashboardSidebar from '../../components/DashboardSidebar/DashboardSidebar';
+import CameraOverview from '../../components/CameraOverview/CameraOverview';
 import { logger } from '../../utils/logger';
 import './Dashboard.scss';
 
@@ -26,9 +27,11 @@ interface VideoStreamModalProps {
     initialStream?: MediaStream | null;
     onClose: () => void;
     startTalking?: boolean;
+    cachedStreamInfo?: { webRtcUrl?: string; hlsUrl?: string; iceServers?: any[] };
+    onCacheStreamInfo?: (info: { webRtcUrl?: string; hlsUrl?: string; iceServers?: any[] }) => void;
 }
 
-const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, camera, initialStream, onClose, startTalking }) => {
+const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, camera, initialStream, onClose, startTalking, cachedStreamInfo, onCacheStreamInfo }) => {
     const [webRtcUrl, setWebRtcUrl] = useState<string | null>(null);
     const [hlsUrl, setHlsUrl] = useState<string | null>(null);
     const [useHlsFallback, setUseHlsFallback] = useState(false);
@@ -39,11 +42,15 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
     const [isMuted, setIsMuted] = useState(true);
     const [isRecording, setIsRecording] = useState(false);
     const [isTalking, setIsTalking] = useState(false);
+    const [isVideoPlaying, setIsVideoPlaying] = useState(false);
     const recordingSessionRef = useRef<RecordingSession | null>(null);
     const modalVideoRef = useRef<HTMLVideoElement>(null);
 
     const handleStatusChange = useCallback((status: 'loading' | 'online' | 'retrying' | 'failed') => {
         setStreamStatus(status);
+        if (status === 'online') {
+            setIsVideoPlaying(true);
+        }
     }, []);
 
     const handleWebRtcError = useCallback((err: Error) => {
@@ -67,6 +74,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             setHasError(false);
             setIceServers([]);
             setStreamStatus('loading');
+            setIsVideoPlaying(false);
             if (modalVideoRef.current) modalVideoRef.current.srcObject = null;
             if (recordingSessionRef.current) {
                 recordingSessionRef.current.stop();
@@ -85,7 +93,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         if (open && initialStream && modalVideoRef.current) {
             modalVideoRef.current.srcObject = initialStream;
             setStreamStatus('online');
-            modalVideoRef.current.play().catch(err => logger.warn('Modal autoplay failed', err));
+            modalVideoRef.current.play().then(() => setIsVideoPlaying(true)).catch(err => logger.warn('Modal autoplay failed', err));
         }
     }, [open, initialStream]);
 
@@ -104,6 +112,16 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         const resolveStreamUrl = async () => {
             if (!open || !camera?.streamUrl || initialStream) return;
 
+            // Check if we have cached info first
+            if (cachedStreamInfo && !retryCount) { // If retrying, we might want to refetch, or use cache? Let's refetch if retrying to be safe, but for initial load use cache.
+                // Actually, if we are retrying, we probably want to re-fetch freshly. 
+                // But for the FIRST load (retryCount === 0), use cache.
+                if (cachedStreamInfo.webRtcUrl) setWebRtcUrl(cachedStreamInfo.webRtcUrl);
+                if (cachedStreamInfo.hlsUrl) setHlsUrl(cachedStreamInfo.hlsUrl);
+                if (cachedStreamInfo.iceServers) setIceServers(cachedStreamInfo.iceServers);
+                return;
+            }
+
             let streamUrl = camera.streamUrl;
             setHasError(false);
 
@@ -119,9 +137,19 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                         const nvrId = parts[infoIdx - 2];
                         const channelId = parseInt(parts[infoIdx - 1]);
                         const streamInfo = await streamService.getStreamInfo(nvrId, channelId);
+
                         if (streamInfo.webRtcUrl) setWebRtcUrl(streamInfo.webRtcUrl);
                         if (streamInfo.hlsUrl) setHlsUrl(streamInfo.hlsUrl);
                         if (streamInfo.iceServers) setIceServers(streamInfo.iceServers);
+
+                        // Cache the result
+                        if (onCacheStreamInfo) {
+                            onCacheStreamInfo({
+                                webRtcUrl: streamInfo.webRtcUrl,
+                                hlsUrl: streamInfo.hlsUrl,
+                                iceServers: streamInfo.iceServers
+                            });
+                        }
                     }
                 } catch (error) {
                     logger.error("Failed to fetch stream info", error);
@@ -133,7 +161,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         };
 
         resolveStreamUrl();
-    }, [open, camera, initialStream, retryCount]);
+    }, [open, camera, initialStream, retryCount, cachedStreamInfo, onCacheStreamInfo]);
 
     const handleScreenshot = () => {
         captureVideoFrame(modalVideoRef.current, camera?.name || 'camera');
@@ -163,6 +191,8 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             }
         }
     };
+
+    const isLoading = !hasError && !isVideoPlaying && (streamStatus === 'loading' || streamStatus === 'retrying');
 
     return (
         <Modal
@@ -224,18 +254,29 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                         SPEAKING
                     </div>
                 )}
+                {/* Video Elements */}
                 {open && initialStream && !isTalking ? (
-                    <video ref={modalVideoRef} autoPlay muted={isMuted} playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                ) : camera && webRtcUrl && !hasError && !useHlsFallback ? (
-                    <WebRtcPlayer
-                        streamUrl={webRtcUrl}
-                        iceServers={iceServers}
+                    <video
+                        ref={modalVideoRef}
                         autoPlay
                         muted={isMuted}
-                        isTalking={isTalking}
-                        onStatusChange={handleStatusChange}
-                        onError={handleWebRtcError}
+                        playsInline
+                        onPlaying={() => setIsVideoPlaying(true)}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain', display: isVideoPlaying ? 'block' : 'none' }}
                     />
+                ) : camera && webRtcUrl && !hasError && !useHlsFallback ? (
+                    <div style={{ display: isVideoPlaying ? 'block' : 'none', width: '100%', height: '100%' }}>
+                        <WebRtcPlayer
+                            streamUrl={webRtcUrl}
+                            iceServers={iceServers}
+                            autoPlay
+                            muted={isMuted}
+                            isTalking={isTalking}
+                            onStatusChange={handleStatusChange}
+                            onError={handleWebRtcError}
+                            videoRef={modalVideoRef}
+                        />
+                    </div>
                 ) : useHlsFallback && hlsUrl ? (
                     <video
                         ref={el => {
@@ -271,21 +312,25 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                         autoPlay
                         controls
                         muted={isMuted}
-                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        onPlaying={() => setIsVideoPlaying(true)}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain', display: isVideoPlaying ? 'block' : 'none' }}
                     />
-                ) : hasError ? (
+                ) : null}
+
+                {/* Loading / Error States */}
+                {hasError ? (
                     <div className="modal-error-overlay" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#fff', gap: '16px' }}>
                         <Text style={{ color: '#ff4d4f' }}>
-                            {retryCount >= 3 ? "Stream not found. The camera might be offline." : "Connecting to stream..."}
+                            {retryCount >= 1 ? "Stream not found. The camera might be offline." : "Connecting to stream..."}
                         </Text>
-                        {retryCount < 3 && <Spin />}
-                        {retryCount >= 3 && (
+                        {retryCount < 1 && <Spin />}
+                        {(retryCount >= 1 || hasError) && (
                             <button onClick={() => { setRetryCount(0); setHasError(false); }} style={{ background: '#1890ff', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}>Retry Connection</button>
                         )}
                     </div>
-                ) : (
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                        <Spin size="large" />
+                ) : isLoading && (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', position: 'absolute', top: 0, left: 0, width: '100%', zIndex: 10 }}>
+                        <Spin size="large" tip="Loading Stream..." />
                     </div>
                 )}
             </div>
@@ -461,6 +506,11 @@ const Dashboard: React.FC = () => {
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [streamInfoCache, setStreamInfoCache] = useState<Map<string, { webRtcUrl?: string; hlsUrl?: string; iceServers?: any[] }>>(new Map());
+
+    const handleCacheStreamInfo = useCallback((cameraId: string, info: { webRtcUrl?: string; hlsUrl?: string; iceServers?: any[] }) => {
+        setStreamInfoCache(prev => new Map(prev).set(cameraId, info));
+    }, []);
 
     const handleCameraClick = useCallback((camera: Camera, stream?: MediaStream, startTalking?: boolean) => {
         setVideoModal({ open: true, camera, stream: stream || activeStreams.get(String(camera.id)) || null, startTalking });
@@ -503,7 +553,36 @@ const Dashboard: React.FC = () => {
             try {
                 setLoading(true);
                 const cameras = await cameraService.getAll();
-                setAllCameras(cameras);
+                setAllCameras(cameras); // Immediate display
+
+                // Real-time status check
+                const checkStatus = async () => {
+                    const statusPromises = cameras.map(async (cam) => {
+                        try {
+                            if (cam.streamUrl && cam.streamUrl.includes('/info')) {
+                                const parts = cam.streamUrl.split('?')[0].split('/');
+                                const infoIdx = parts.indexOf('info');
+                                if (infoIdx >= 2) {
+                                    const nvrId = parts[infoIdx - 2];
+                                    const channelId = parseInt(parts[infoIdx - 1]);
+                                    await streamService.getStreamInfo(nvrId, channelId);
+                                    return { ...cam, status: CAM_STATUS.ONLINE };
+                                }
+                            }
+                            // Simple fallback: If it's a direct URL, assume online or perform a HEAD request if possible.
+                            // For now, defaulting to ONLINE if logic passes, unless explicit failure.
+                            return { ...cam, status: CAM_STATUS.ONLINE };
+                        } catch (e) {
+                            return { ...cam, status: CAM_STATUS.OFFLINE };
+                        }
+                    });
+
+                    const updatedCameras = await Promise.all(statusPromises);
+                    setAllCameras(updatedCameras);
+                };
+
+                checkStatus();
+
             } catch (error) {
                 logger.error("Failed to fetch cameras", error);
             } finally {
@@ -516,6 +595,10 @@ const Dashboard: React.FC = () => {
     const selectedCameras = useMemo(() => {
         return allCameras.filter(cam => selectedCameraIds.includes(String(cam.id)));
     }, [allCameras, selectedCameraIds]);
+
+    const handleOverviewCameraSelect = useCallback((camera: Camera) => {
+        handleCameraClick(camera);
+    }, [handleCameraClick]);
 
     return (
         <div className={`dashboard-container ${isFullscreen ? 'fullscreen-mode' : ''}`}>
@@ -549,6 +632,11 @@ const Dashboard: React.FC = () => {
                     <div className="loading-container">
                         <Spin size="large" tip="Loading cameras..." />
                     </div>
+                ) : selectedCameras.length === 0 ? (
+                    <CameraOverview
+                        cameras={allCameras}
+                        onCameraSelect={handleOverviewCameraSelect}
+                    />
                 ) : (
                     <SelectedCameraGrid
                         cameras={selectedCameras}
@@ -567,6 +655,8 @@ const Dashboard: React.FC = () => {
                 initialStream={videoModal.stream}
                 onClose={handleCloseModal}
                 startTalking={videoModal.startTalking}
+                cachedStreamInfo={videoModal.camera ? streamInfoCache.get(String(videoModal.camera.id)) : undefined}
+                onCacheStreamInfo={(info) => videoModal.camera && handleCacheStreamInfo(String(videoModal.camera.id), info)}
             />
         </div>
     );

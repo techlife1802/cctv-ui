@@ -181,8 +181,17 @@ const Configuration: React.FC = () => {
         try {
             const values = await nvrForm.validateFields();
             setIsTesting(true);
+
             // Create a temporary NVR object for testing
-            const tempNvr = { ...values, id: editingNvr?.id || 'temp' };
+            // If type is ADIVA, use XMEYE for the backend connection test
+            const typeToSend = values.type === NVR_TYPE.ADIVA ? 'XMEYE' : values.type;
+
+            const tempNvr = {
+                ...values,
+                type: typeToSend as any,
+                id: editingNvr?.id || 'temp'
+            };
+
             const cameras = await nvrService.testConnection(tempNvr);
             setDiscoveredCameras(cameras);
             setHasDiscoveryRun(true);

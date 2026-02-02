@@ -30,8 +30,8 @@ logDestinations: [stdout]
 ####################
 rtsp: yes
 rtspAddress: :8554
-readTimeout: 20s
-writeTimeout: 20s
+readTimeout: 60s
+writeTimeout: 60s
 
 rtmp: yes
 rtmpAddress: :1935
@@ -42,7 +42,7 @@ hlsAllowOrigins: ["*"]
 hlsVariant: lowLatency
 hlsSegmentDuration: 2s
 hlsPartDuration: 400ms
-hlsSegmentCount: 5
+hlsSegmentCount: 7
 hlsDirectory: /dev/shm/hls
 
 webrtc: yes
@@ -59,4 +59,4 @@ pathDefaults:
   sourceProtocol: tcp
   sourceOnDemand: yes
   sourceOnDemandStartTimeout: 30s
-  sourceOnDemandCloseAfter: 30s
+  sourceOnDemandCloseAfter: 5m

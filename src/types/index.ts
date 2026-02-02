@@ -79,3 +79,5 @@ export interface OnvifCamera {
     streamUri: string;
     status: string;
 }
+
+export { CAM_STATUS, NVR_TYPE, USER_ROLE } from '../constants';

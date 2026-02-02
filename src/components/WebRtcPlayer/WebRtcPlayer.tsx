@@ -11,6 +11,7 @@ interface WebRtcPlayerProps {
     iceServers?: { urls: string | string[]; username?: string; credential?: string }[];
     onStatusChange?: (status: 'loading' | 'online' | 'retrying' | 'failed') => void;
     isTalking?: boolean;
+    videoRef?: React.RefObject<HTMLVideoElement | null>;
 }
 
 const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
@@ -22,9 +23,13 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
     onError,
     iceServers,
     onStatusChange,
-    isTalking = false
+    isTalking = false,
+    videoRef: externalVideoRef
 }) => {
-    const videoRef = useRef<HTMLVideoElement>(null);
+    const internalVideoRef = useRef<HTMLVideoElement>(null);
+    const videoRef = externalVideoRef || internalVideoRef;
+
+    // ... rest of the code is unchanged, because it uses `videoRef` which we just defined to fallback.
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const micStreamRef = useRef<MediaStream | null>(null);
     const [isLoading, setIsLoading] = useState(!initialStream);
@@ -75,7 +80,7 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                 pcRef.current = pc;
 
                 pc.oniceconnectionstatechange = () => {
-                    logger.info(`ICE State [${streamUrl}]: ${pc.iceConnectionState}`);
+                    // logger.info(`ICE State [${streamUrl}]: ${pc.iceConnectionState}`);
                     if (pc.iceConnectionState === 'failed') {
                         handleError(new Error('WebRTC ICE Connection Failed'));
                     } else if (pc.iceConnectionState === 'disconnected') {
@@ -160,14 +165,14 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                     }
                 }, 4000) as unknown as number;
 
-                setIsLoading(false);
+                // setIsLoading(false); // Removed to avoid flash, logic handled by status change
             } catch (err) {
                 handleError(err as Error);
             }
         };
 
         const handleError = (err: Error) => {
-            logger.error('WebRTC failed', err);
+            // logger.error('WebRTC failed', err);
             setHasError(true);
             setIsLoading(false);
             onStatusChangeRef.current?.('failed');
@@ -191,20 +196,20 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
         startWebRtc();
 
         return () => cleanup();
-    }, [streamUrl, initialStream, iceServers, isTalking]);
+    }, [streamUrl, initialStream, iceServers, isTalking, videoRef]); // Added videoRef dep
 
     useEffect(() => {
         const video = videoRef.current;
         if (video && autoPlay && !isLoading && !hasError) {
             video.play().catch(err => logger.warn('WebRTC autoplay failed', err));
         }
-    }, [autoPlay, isLoading, hasError]);
+    }, [autoPlay, isLoading, hasError, videoRef]);
 
     useEffect(() => {
         if (videoRef.current) {
             videoRef.current.muted = muted;
         }
-    }, [muted]);
+    }, [muted, videoRef]);
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', background: '#000' }}>
