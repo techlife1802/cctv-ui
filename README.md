@@ -21,50 +21,40 @@ Verify:
 docker --version
 docker compose version
 cloudflared --version
-```
 
-------------------------------------------------------------------------
+to check images ---- 
+docker images | grep cctv
 
-## 2. Docker Image Build (Mac -- Developer Machine)
+to Build Image for UI -----
+docker build -t ghcr.io/techlife1802/cctv-frontend:latest .
 
-### 2.1 Login to Docker Hub
+to Build Image for Backend -----
+docker build -t ghcr.io/techlife1802/cctv-backend:latest backend/
 
-``` bash
-docker login
-```
+echo <CLIENT_GITHUB_TOKEN> | docker login ghcr.io -u techlife1802 --password-stdin
 
-------------------------------------------------------------------------
 
-### 2.2 Build Frontend Image
+-----to upload the Docker images to github container registry
+docker tag cctv-frontend:latest ghcr.io/techlife1802/cctv-frontend:latest
+docker tag cctv-backend:latest ghcr.io/techlife1802/cctv-backend:latest
+docker push ghcr.io/techlife1802/cctv-frontend:latest
+docker push ghcr.io/techlife1802/cctv-backend:latest
 
-From project root (where Dockerfile exists):
+On Client machine : ----- 
 
-``` bash
-docker build -t <dockerhub-username>/cctv-frontend:latest .
-```
+echo <CLIENT_GITHUB_TOKEN> | docker login ghcr.io -u techlife1802 --password-stdin
+docker pull ghcr.io/techlife1802/cctv-frontend:latest
+docker pull ghcr.io/techlife1802/cctv-backend:latest
 
-------------------------------------------------------------------------
-
-### 2.3 Build Backend Image
-
-``` bash
-cd backend
-docker build -t <dockerhub-username>/cctv-backend:latest .
-cd ..
-```
-
-------------------------------------------------------------------------
-
-### 2.4 Push Images to Docker Hub
-
-``` bash
-docker push <dockerhub-username>/cctv-frontend:latest
-docker push <dockerhub-username>/cctv-backend:latest
-```
-
-------------------------------------------------------------------------
 
 ## 3. Update docker-compose.yml (Client Side)
+
+downlaod the docker-compose.yml file from the github repository and update the below lines and keep that 
+file in the directory where you have to run the app. 
+
+Also create a nginx folder and add the nginx conf file in same folder
+
+Also create a mediamtx.yml file in the same folder
 
 Replace build sections with images:
 
@@ -185,12 +175,15 @@ tunnel: cctv-tunnel
 credentials-file: /Users/<user>/.cloudflared/<tunnel-id>.json
 
 ingress:
+  - hostname: app.campuswatch.in
+    service: http://localhost:3000
+
   - hostname: api.campuswatch.in
     service: http://localhost:8080
+  
   - hostname: stream.campuswatch.in
-    service: http://localhost:8888
-  - hostname: webrtc.campuswatch.in
-    service: http://localhost:8889
+    service: http://localhost:8000
+
   - service: http_status:404
 ```
 
@@ -198,10 +191,13 @@ ingress:
 
 ### 5.5 DNS Mapping, This is only required to be done one time
 
+If creating a new tunnel then just update the tunnel id in the DNS for the below given routes by logging in to the clouflared webpage.
+
 ``` bash
+cloudflared tunnel route dns campus-watch app.campuswatch.in
 cloudflared tunnel route dns campus-watch api.campuswatch.in
 cloudflared tunnel route dns campus-watch stream.campuswatch.in
-cloudflared tunnel route dns campus-watch webrtc.campuswatch.in
+cloudflared tunnel route dns campus-watch webrtc.campuswatch.in --- this should be DNL only
 ```
 
 ------------------------------------------------------------------------
