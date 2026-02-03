@@ -641,6 +641,7 @@ const Dashboard: React.FC = () => {
                         cameras={allCameras}
                         onCameraSelect={handleOverviewCameraSelect}
                         onCheckNvrStatus={handleCheckNvrStatus}
+                        onSelectionChange={handleSelectionChange}
                     />
                 ) : (
                     <SelectedCameraGrid

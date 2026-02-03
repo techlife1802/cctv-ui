@@ -11,9 +11,10 @@ interface CameraOverviewProps {
     cameras: Camera[];
     onCameraSelect?: (camera: Camera) => void;
     onCheckNvrStatus?: (nvrName: string, cameras: Camera[]) => Promise<void>;
+    onSelectionChange?: (selectedIds: string[]) => void;
 }
 
-const CameraOverview: React.FC<CameraOverviewProps> = ({ cameras, onCameraSelect, onCheckNvrStatus }) => {
+const CameraOverview: React.FC<CameraOverviewProps> = ({ cameras, onCameraSelect, onCheckNvrStatus, onSelectionChange }) => {
     const [searchText, setSearchText] = useState('');
     const [expandedLocs, setExpandedLocs] = useState<string[]>([]);
     const [expandedNvrs, setExpandedNvrs] = useState<string[]>([]);
@@ -22,7 +23,7 @@ const CameraOverview: React.FC<CameraOverviewProps> = ({ cameras, onCameraSelect
     const filteredCameras = useMemo(() => {
         if (!searchText) return cameras;
         const lowSearch = searchText.toLowerCase();
-        return cameras.filter(cam =>
+        return cameras.filter((cam: Camera) =>
             cam.name.toLowerCase().includes(lowSearch) ||
             cam.location.toLowerCase().includes(lowSearch) ||
             cam.nvr.toLowerCase().includes(lowSearch)
@@ -31,7 +32,7 @@ const CameraOverview: React.FC<CameraOverviewProps> = ({ cameras, onCameraSelect
 
     const camerasByLocationAndNvr = useMemo(() => {
         const grouped: Record<string, Record<string, Camera[]>> = {};
-        filteredCameras.forEach(cam => {
+        filteredCameras.forEach((cam: Camera) => {
             if (!grouped[cam.location]) {
                 grouped[cam.location] = {};
             }
@@ -51,6 +52,22 @@ const CameraOverview: React.FC<CameraOverviewProps> = ({ cameras, onCameraSelect
         }
     };
 
+    const handleLocationClick = (e: React.MouseEvent, locationCameras: Record<string, Camera[]>) => {
+        e.stopPropagation();
+        if (onSelectionChange) {
+            const ids = Object.values(locationCameras).flat().map((c: Camera) => String(c.id));
+            onSelectionChange(ids);
+        }
+    };
+
+    const handleNvrClick = (e: React.MouseEvent, nvrCameras: Camera[]) => {
+        e.stopPropagation();
+        if (onSelectionChange) {
+            const ids = nvrCameras.map((c: Camera) => String(c.id));
+            onSelectionChange(ids);
+        }
+    };
+
     if (!cameras || cameras.length === 0) {
         return (
             <div className="camera-overview-empty">
@@ -66,8 +83,8 @@ const CameraOverview: React.FC<CameraOverviewProps> = ({ cameras, onCameraSelect
                     <h4 style={{ marginBottom: 0, marginTop: 0 }}>Cameras Overview</h4>
                     <span className="stats">
                         Total: {cameras.length} |
-                        Online: {cameras.filter(c => c.status === CAM_STATUS.ONLINE).length} |
-                        Offline: {cameras.filter(c => c.status === CAM_STATUS.OFFLINE).length}
+                        Online: {cameras.filter((c: Camera) => c.status === CAM_STATUS.ONLINE).length} |
+                        Offline: {cameras.filter((c: Camera) => c.status === CAM_STATUS.OFFLINE).length}
                     </span>
                 </div>
                 <Input
@@ -81,21 +98,22 @@ const CameraOverview: React.FC<CameraOverviewProps> = ({ cameras, onCameraSelect
             </div>
 
             <div className="locations-collapse-wrapper">
-                {Object.entries(camerasByLocationAndNvr).sort().map(([location, nvrs]) => (
+                {Object.entries(camerasByLocationAndNvr).sort().map(([location, nvrs]: [string, Record<string, Camera[]>]) => (
                     <Collapse
                         key={location}
                         className="location-collapse"
                         activeKey={expandedLocs.includes(location) ? [location] : []}
                         onChange={(keys: string | string[]) => setExpandedLocs(Array.isArray(keys) ? keys : [keys])}
                         expandIcon={({ isActive }: { isActive?: boolean }) => <RightOutlined rotate={isActive ? 90 : 0} />}
+                        collapsible="icon"
                     >
                         <Panel
                             header={
-                                <div className="location-header">
+                                <div className="location-header" onClick={(e: React.MouseEvent) => handleLocationClick(e, nvrs)}>
                                     <EnvironmentOutlined className="location-icon" />
                                     <h4 className="location-title">{location}</h4>
                                     <Badge
-                                        count={Object.values(nvrs).reduce((acc, curr) => acc + curr.length, 0)}
+                                        count={Object.values(nvrs).reduce((acc: number, curr: Camera[]) => acc + curr.length, 0)}
                                         style={{ backgroundColor: '#1890ff', marginLeft: 8 }}
                                     />
                                 </div>
@@ -103,7 +121,7 @@ const CameraOverview: React.FC<CameraOverviewProps> = ({ cameras, onCameraSelect
                             key={location}
                         >
                             <div className="nvrs-wrapper">
-                                {(Object.entries(nvrs) as [string, Camera[]][]).sort((a, b) => a[0].localeCompare(b[0])).map(([nvr, nvrCameras]) => {
+                                {(Object.entries(nvrs) as [string, Camera[]][]).sort((a, b) => a[0].localeCompare(b[0])).map(([nvr, nvrCameras]: [string, Camera[]]) => {
                                     const nvrKey = `${location}-${nvr}`;
                                     return (
                                         <Collapse
@@ -119,10 +137,11 @@ const CameraOverview: React.FC<CameraOverviewProps> = ({ cameras, onCameraSelect
                                                 setExpandedNvrs(activeKeys);
                                             }}
                                             expandIcon={({ isActive }: { isActive?: boolean }) => <RightOutlined rotate={isActive ? 90 : 0} />}
+                                            collapsible="icon"
                                         >
                                             <Panel
                                                 header={
-                                                    <div className="nvr-header">
+                                                    <div className="nvr-header" onClick={(e: React.MouseEvent) => handleNvrClick(e, nvrCameras)}>
                                                         <DatabaseOutlined className="nvr-icon" />
                                                         <span className="nvr-title">{nvr}</span>
                                                         <Badge
