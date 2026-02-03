@@ -35,12 +35,12 @@ const CameraOverview: React.FC<CameraOverviewProps> = ({ cameras, onCameraSelect
     return (
         <div className="camera-overview-container">
             <div className="overview-header">
-                <H3 level={2} style={{ marginBottom: 0 }}>System Overview</H3>
-                <Text type="secondary">
+                <h4 style={{ marginBottom: 0, marginTop: 0 }}>Cameras Overview</h4>
+                <span>
                     Total Cameras: {cameras.length} |
                     Online: {cameras.filter(c => c.status === CAM_STATUS.ONLINE).length} |
                     Offline: {cameras.filter(c => c.status === CAM_STATUS.OFFLINE).length}
-                </Text>
+                </span>
             </div>
 
             <div className="locations-grid">
@@ -48,7 +48,7 @@ const CameraOverview: React.FC<CameraOverviewProps> = ({ cameras, onCameraSelect
                     <div key={location} className="location-section">
                         <div className="location-header">
                             <EnvironmentOutlined className="location-icon" />
-                            <Title level={4} className="location-title">{location}</Title>
+                            <h4 className="location-title">{location}</h4>
                             <Badge
                                 count={locationCameras.length}
                                 style={{ backgroundColor: '#1890ff' }}
@@ -63,20 +63,21 @@ const CameraOverview: React.FC<CameraOverviewProps> = ({ cameras, onCameraSelect
                                         className="camera-overview-card"
                                         onClick={() => onCameraSelect && onCameraSelect(camera)}
                                         size="small"
+                                        style={{ backgroundColor: camera.status === CAM_STATUS.ONLINE ? '#7cb27c' : '#d15757' }}
                                     >
                                         <div className="camera-card-content">
                                             <div className="camera-icon-wrapper">
                                                 <VideoCameraOutlined />
                                             </div>
                                             <div className="camera-info">
-                                                <Text strong ellipsis className="camera-name">{camera.name}</Text>
-                                                <Text type="secondary" ellipsis className="nvr-name">{camera.nvr}</Text>
-                                                <div className="status-indicator">
-                                                    <Badge
-                                                        status={camera.status === CAM_STATUS.ONLINE ? 'success' : 'error'}
-                                                        text={camera.status}
-                                                    />
-                                                </div>
+                                                <Text
+                                                    ellipsis={{
+                                                        tooltip: true
+                                                    }}
+                                                >
+                                                    {camera.name}
+                                                </Text>
+                                                <span className="nvr-name">{camera.nvr}</span>
                                             </div>
                                         </div>
                                     </Card>
