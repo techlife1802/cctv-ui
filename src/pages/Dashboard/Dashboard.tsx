@@ -31,7 +31,7 @@ interface VideoStreamModalProps {
     onCacheStreamInfo?: (info: { webRtcUrl?: string; hlsUrl?: string; iceServers?: any[] }) => void;
 }
 
-const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, camera, initialStream, onClose, startTalking, cachedStreamInfo, onCacheStreamInfo }) => {
+const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, camera, initialStream, onClose, startTalking, cachedStreamInfo, onCacheStreamInfo }: VideoStreamModalProps) => {
     const [webRtcUrl, setWebRtcUrl] = useState<string | null>(null);
     const [hlsUrl, setHlsUrl] = useState<string | null>(null);
     const [useHlsFallback, setUseHlsFallback] = useState(false);
@@ -58,7 +58,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         if (hlsUrl) {
             setUseHlsFallback(true);
         } else if (retryCount < 1) {
-            setTimeout(() => setRetryCount(prev => prev + 1), 1000);
+            setTimeout(() => setRetryCount((prev: number) => prev + 1), 1000);
         } else {
             setHasError(true);
         }
@@ -93,7 +93,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         if (open && initialStream && modalVideoRef.current) {
             modalVideoRef.current.srcObject = initialStream;
             setStreamStatus('online');
-            modalVideoRef.current.play().then(() => setIsVideoPlaying(true)).catch(err => logger.warn('Modal autoplay failed', err));
+            modalVideoRef.current.play().then(() => setIsVideoPlaying(true)).catch((err: Error) => logger.warn('Modal autoplay failed', err));
         }
     }, [open, initialStream]);
 
@@ -211,7 +211,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                 <Button
                     key="audio"
                     icon={isMuted ? <AudioMutedOutlined /> : <AudioOutlined />}
-                    onClick={() => setIsMuted(prev => !prev)}
+                    onClick={() => setIsMuted((prev: boolean) => !prev)}
                     type={!isMuted ? 'primary' : 'default'}
                 >
                     {isMuted ? 'Unmute' : 'Mute'}
@@ -279,7 +279,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                     </div>
                 ) : useHlsFallback && hlsUrl ? (
                     <video
-                        ref={el => {
+                        ref={(el: HTMLVideoElement | null) => {
                             if (el && hlsUrl) {
                                 if (Hls.isSupported()) {
                                     const hls = new Hls({
@@ -294,9 +294,9 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                                     hls.attachMedia(el);
                                     hls.on(Hls.Events.MANIFEST_PARSED, () => {
                                         setStreamStatus('online');
-                                        el.play().catch(e => logger.warn("HLS Modal play error:", e));
+                                        el.play().catch((e: Error) => logger.warn("HLS Modal play error:", e));
                                     });
-                                    hls.on(Hls.Events.ERROR, (_, data) => {
+                                    hls.on(Hls.Events.ERROR, (_: any, data: any) => {
                                         if (data.fatal) {
                                             setHasError(true);
                                             setStreamStatus('failed');
@@ -305,7 +305,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                                 } else if (el.canPlayType('application/vnd.apple.mpegurl')) {
                                     el.src = hlsUrl;
                                     setStreamStatus('online');
-                                    el.play().catch(e => logger.warn("HLS Modal native play error:", e));
+                                    el.play().catch((e: Error) => logger.warn("HLS Modal native play error:", e));
                                 }
                             }
                         }}
@@ -354,11 +354,11 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
     isModalOpen,
     isFullscreen,
     onToggleFullscreen
-}) => {
+}: SelectedCameraGridProps) => {
     const [currentPage, setCurrentPage] = useState(0);
     const [isAutoRotating, setIsAutoRotating] = useState(true);
     const [gridSize, setGridSize] = useState(12);
-    const ROTATION_MS = 30000;
+    const ROTATION_MS = 45000;
 
     const totalPages = Math.ceil(cameras.length / gridSize);
 
@@ -375,26 +375,26 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
 
     const handlePrevPage = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
-        setCurrentPage((prev) => (prev - 1 + totalPages) % totalPages);
+        setCurrentPage((prev: number) => (prev - 1 + totalPages) % totalPages);
         setIsAutoRotating(false);
     }, [totalPages]);
 
     const handleNextPage = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
-        setCurrentPage((prev) => (prev + 1) % totalPages);
+        setCurrentPage((prev: number) => (prev + 1) % totalPages);
         setIsAutoRotating(false);
     }, [totalPages]);
 
     const toggleAutoRotation = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
-        setIsAutoRotating(prev => !prev);
+        setIsAutoRotating((prev: boolean) => !prev);
     }, []);
 
     useEffect(() => {
         if (!isAutoRotating || cameras.length <= gridSize || isModalOpen) return;
 
         const interval = setInterval(() => {
-            setCurrentPage(prev => (prev + 1) % totalPages);
+            setCurrentPage((prev: number) => (prev + 1) % totalPages);
         }, ROTATION_MS);
 
         return () => clearInterval(interval);
@@ -423,7 +423,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                     <Select
                         value={gridSize}
                         style={{ width: 100 }}
-                        onChange={(value) => {
+                        onChange={(value: number) => {
                             setGridSize(value);
                             setCurrentPage(0);
                         }}
@@ -437,7 +437,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                     />
                 </div>
 
-                <div className="pagination-controls" onClick={e => e.stopPropagation()}>
+                <div className="pagination-controls" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                     {totalPages > 1 && (
                         <>
                             <div className="pagination-buttons">
@@ -509,7 +509,7 @@ const Dashboard: React.FC = () => {
     const [streamInfoCache, setStreamInfoCache] = useState<Map<string, { webRtcUrl?: string; hlsUrl?: string; iceServers?: any[] }>>(new Map());
 
     const handleCacheStreamInfo = useCallback((cameraId: string, info: { webRtcUrl?: string; hlsUrl?: string; iceServers?: any[] }) => {
-        setStreamInfoCache(prev => new Map(prev).set(cameraId, info));
+        setStreamInfoCache((prev: Map<string, any>) => new Map(prev).set(cameraId, info));
     }, []);
 
     const handleCameraClick = useCallback((camera: Camera, stream?: MediaStream, startTalking?: boolean) => {
@@ -517,11 +517,11 @@ const Dashboard: React.FC = () => {
     }, [activeStreams]);
 
     const handleCloseModal = useCallback(() => {
-        setVideoModal(prev => ({ ...prev, open: false }));
+        setVideoModal((prev: any) => ({ ...prev, open: false }));
     }, []);
 
     const handleStreamReady = useCallback((camera: Camera, stream: MediaStream) => {
-        setActiveStreams(prev => new Map(prev).set(String(camera.id), stream));
+        setActiveStreams((prev: Map<string, MediaStream>) => new Map(prev).set(String(camera.id), stream));
     }, []);
 
     const handleSelectionChange = useCallback((ids: string[]) => {
@@ -534,55 +534,59 @@ const Dashboard: React.FC = () => {
 
     const toggleSidebar = useCallback(() => {
         if (window.innerWidth <= 768) {
-            setMobileSidebarOpen(prev => !prev);
+            setMobileSidebarOpen((prev: boolean) => !prev);
         } else {
-            setSidebarCollapsed(prev => !prev);
+            setSidebarCollapsed((prev: boolean) => !prev);
         }
     }, []);
 
     const toggleFullscreen = useCallback(() => {
-        setIsFullscreen(prev => !prev);
+        setIsFullscreen((prev: boolean) => !prev);
         // When entering full screen, also collapse sidebar on desktop
         if (!isFullscreen && window.innerWidth > 768) {
             setSidebarCollapsed(true);
         }
     }, [isFullscreen]);
 
+    const handleCheckNvrStatus = useCallback(async (nvrName: string, cameras: Camera[]) => {
+        const checkStatus = async () => {
+            const statusPromises = cameras.map(async (cam) => {
+                try {
+                    if (cam.streamUrl && cam.streamUrl.includes('/info')) {
+                        const parts = cam.streamUrl.split('?')[0].split('/');
+                        const infoIdx = parts.indexOf('info');
+                        if (infoIdx >= 2) {
+                            const nvrId = parts[infoIdx - 2];
+                            const channelId = parseInt(parts[infoIdx - 1]);
+                            await streamService.getStreamInfo(nvrId, channelId);
+                            return { ...cam, status: CAM_STATUS.ONLINE };
+                        }
+                    }
+                    return { ...cam, status: CAM_STATUS.ONLINE };
+                } catch (e) {
+                    return { ...cam, status: CAM_STATUS.OFFLINE };
+                }
+            });
+
+            const updatedCameras = await Promise.all(statusPromises);
+            setAllCameras((prev: Camera[]) => {
+                const updated = [...prev];
+                updatedCameras.forEach(uc => {
+                    const idx = updated.findIndex(c => c.id === uc.id);
+                    if (idx !== -1) updated[idx] = uc;
+                });
+                return updated;
+            });
+        };
+        await checkStatus();
+    }, []);
+
     useEffect(() => {
         const fetchAllCameras = async () => {
             try {
                 setLoading(true);
                 const cameras = await cameraService.getAll();
-                setAllCameras(cameras); // Immediate display
-
-                // Real-time status check
-                const checkStatus = async () => {
-                    const statusPromises = cameras.map(async (cam) => {
-                        try {
-                            if (cam.streamUrl && cam.streamUrl.includes('/info')) {
-                                const parts = cam.streamUrl.split('?')[0].split('/');
-                                const infoIdx = parts.indexOf('info');
-                                if (infoIdx >= 2) {
-                                    const nvrId = parts[infoIdx - 2];
-                                    const channelId = parseInt(parts[infoIdx - 1]);
-                                    await streamService.getStreamInfo(nvrId, channelId);
-                                    return { ...cam, status: CAM_STATUS.ONLINE };
-                                }
-                            }
-                            // Simple fallback: If it's a direct URL, assume online or perform a HEAD request if possible.
-                            // For now, defaulting to ONLINE if logic passes, unless explicit failure.
-                            return { ...cam, status: CAM_STATUS.ONLINE };
-                        } catch (e) {
-                            return { ...cam, status: CAM_STATUS.OFFLINE };
-                        }
-                    });
-
-                    const updatedCameras = await Promise.all(statusPromises);
-                    setAllCameras(updatedCameras);
-                };
-
-                checkStatus();
-
+                setAllCameras(cameras);
             } catch (error) {
                 logger.error("Failed to fetch cameras", error);
             } finally {
@@ -636,6 +640,7 @@ const Dashboard: React.FC = () => {
                     <CameraOverview
                         cameras={allCameras}
                         onCameraSelect={handleOverviewCameraSelect}
+                        onCheckNvrStatus={handleCheckNvrStatus}
                     />
                 ) : (
                     <SelectedCameraGrid
@@ -656,7 +661,7 @@ const Dashboard: React.FC = () => {
                 onClose={handleCloseModal}
                 startTalking={videoModal.startTalking}
                 cachedStreamInfo={videoModal.camera ? streamInfoCache.get(String(videoModal.camera.id)) : undefined}
-                onCacheStreamInfo={(info) => videoModal.camera && handleCacheStreamInfo(String(videoModal.camera.id), info)}
+                onCacheStreamInfo={(info: any) => videoModal.camera && handleCacheStreamInfo(String(videoModal.camera.id), info)}
             />
         </div>
     );

@@ -38,30 +38,30 @@
                 }
             }
 
-            .logo {
-                display: none;
-                font-size: 20px;
-                font-weight: 700;
-                color: var(--accent-color);
+            .logo-section {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                cursor: pointer;
                 margin-right: 24px;
-                white-space: nowrap;
-                cursor: pointer;
+                height: 100%;
 
-                @media (max-width: 768px) {
-                    display: block;
+                .logo-image {
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 50%;
+                    object-fit: cover;
                 }
-            }
 
-            .full-logo {
-                font-size: 20px;
-                font-weight: 700;
-                color: var(--accent-color);
-                margin-right: 48px;
-                white-space: nowrap;
-                cursor: pointer;
+                .logo-text {
+                    font-size: 20px;
+                    font-weight: 700;
+                    color: var(--accent-color);
+                    white-space: nowrap;
 
-                @media (max-width: 768px) {
-                    display: none;
+                    @media (max-width: 768px) {
+                        display: none;
+                    }
                 }
             }
 
@@ -164,6 +164,7 @@
     }
 }
 
+// Mobile navigation drawer
 .mobile-drawer {
     .ant-drawer-body {
         padding: 0 !important;

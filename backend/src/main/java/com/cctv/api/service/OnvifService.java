@@ -51,6 +51,12 @@ public class OnvifService {
             return hikCameras;
         }
 
+        List<OnvifCameraDto> xmeyeCameras = discoverXmeyeOnvif(ip, port, user, pass);
+        if (!xmeyeCameras.isEmpty()) {
+            log.info("Detected Adiva via ISAPI. Found {} cameras.", xmeyeCameras.size());
+            return xmeyeCameras;
+        }
+
         // 2️⃣ Try CP Plus CGI next (with Digest Auth support)
         List<OnvifCameraDto> cpCameras = discoverCpplus(ip, port, user, pass);
         if (!cpCameras.isEmpty()) {
@@ -63,6 +69,88 @@ public class OnvifService {
     }
 
     // ========================= VENDOR DISCOVERY =========================
+
+    private List<OnvifCameraDto> discoverXmeyeOnvif(
+            String ip, String port, String user, String pass) {
+
+        List<OnvifCameraDto> list = new ArrayList<>();
+
+        try {
+            String mediaUrl = String.format(
+                    "http://%s:%s/onvif/Media", ip, port);
+
+            String soapRequest = "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\" " +
+                    "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\">" +
+                    "<s:Header/>" +
+                    "<s:Body>" +
+                    "<trt:GetProfiles/>" +
+                    "</s:Body>" +
+                    "</s:Envelope>";
+
+            String response = webClient.post()
+                    .uri(mediaUrl)
+                    .headers(h -> {
+                        h.setBasicAuth(user, pass);
+                        h.add("Content-Type", "application/soap+xml; charset=utf-8");
+                    })
+                    .bodyValue(soapRequest)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(5))
+                    .block();
+
+            if (response == null || response.isEmpty()) {
+                return list;
+            }
+
+            Document doc = DocumentBuilderFactory.newInstance()
+                    .newDocumentBuilder()
+                    .parse(new ByteArrayInputStream(response.getBytes()));
+
+            XPath xp = XPathFactory.newInstance().newXPath();
+
+            NodeList profiles = (NodeList) xp.evaluate(
+                    "//*[local-name()='Profiles']",
+                    doc,
+                    XPathConstants.NODESET);
+
+            for (int i = 0; i < profiles.getLength(); i++) {
+
+                String token = profiles.item(i)
+                        .getAttributes()
+                        .getNamedItem("token")
+                        .getNodeValue();
+
+                String name = xp.evaluate(
+                        ".//*[local-name()='Name']",
+                        profiles.item(i));
+
+                int channel = i + 1;
+
+                String rtsp = String.format(
+                        "rtsp://%s:%s@%s:554/Streaming/Channels/%d01",
+                        encode(user), encode(pass), ip, channel);
+
+                if (name == null || name.isEmpty()) {
+                    name = "Camera " + channel;
+                }
+
+                list.add(OnvifCameraDto.builder()
+                        .name(name)
+                        .profileName("Main Stream")
+                        .channel(channel)
+                        .profileToken(token)
+                        .streamUri(rtsp)
+                        .status("Online")
+                        .build());
+            }
+
+        } catch (Exception e) {
+            log.warn("Xmeye ONVIF discovery failed: {}", e.getMessage());
+        }
+
+        return list;
+    }
 
     private List<OnvifCameraDto> discoverCpplus(String ip, String port, String user, String pass) {
         // Correct format: http://ip:port/cgi-bin/... (No user:pass in URL for Digest)

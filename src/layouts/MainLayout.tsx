@@ -12,6 +12,7 @@ import {
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../themeContext';
 import './MainLayout.scss';
+import logo from "../images/campus_watch_owl_logo.png";
 
 const { Header, Content } = Layout;
 
@@ -76,8 +77,14 @@ const MainLayout: React.FC = () => {
                         onClick={() => setDrawerVisible(true)}
                         type="text"
                     />
-                    <div className="logo" onClick={() => navigate('/')}>CW</div>
-                    <div className="full-logo" onClick={() => navigate('/')}>CAMPUS WATCH</div>
+                    <div className="logo-section" onClick={() => navigate('/')}>
+                        <img
+                            className="logo-image"
+                            src={logo}
+                            alt="Logo"
+                        />
+                        <span className="logo-text">CAMPUS WATCH</span>
+                    </div>
                     <Menu
                         theme={currentTheme}
                         mode="horizontal"

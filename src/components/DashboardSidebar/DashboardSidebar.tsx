@@ -117,7 +117,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     return (
         <div className={`dashboard-sidebar ${className}`}>
             <div className="sidebar-header">
-                <Title level={4} className="sidebar-title">Locations</Title>
+                <Title level={4} className="sidebar-title">CCTV Locations</Title>
                 <Input
                     placeholder="Search cameras..."
                     prefix={<SearchOutlined />}
