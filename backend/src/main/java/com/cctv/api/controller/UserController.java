@@ -5,6 +5,7 @@ import com.cctv.api.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -12,8 +13,8 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "http://localhost:3000")
-@org.springframework.security.access.prepost.PreAuthorize("hasRole('admin')")
+@CrossOrigin(origins = "*")
+@PreAuthorize("hasRole('ADMIN')")
 @RequiredArgsConstructor
 public class UserController {
 

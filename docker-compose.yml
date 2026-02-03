@@ -1,17 +1,76 @@
-version: '3.8'
-
 services:
   db:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: cctv-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
       POSTGRES_DB: cctvdb
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d cctvdb" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest-ffmpeg
+    container_name: cctv-mediamtx
+    ports:
+      - "8554:8554" # RTSP
+      - "1935:1935" # RTMP
+      - "8888:8888" # HLS
+      - "8889:8889" # WebRTC
+      - "8189:8189/udp" # WebRTC ICE/UDP
+      - "8557:8557" # API
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    restart: unless-stopped
+    depends_on:
+      - coturn
+    extra_hosts:
+      - "webrtc.campuswatch.in:127.0.0.1"
+      - "stream.campuswatch.in:127.0.0.1"
+
+  nginx_proxy:
+    image: nginx:alpine
+    container_name: cctv-nginx
+    ports:
+      - "8000:80" # Tunnel can point to localhost:8000
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - mediamtx
+    restart: unless-stopped
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: cctv-coturn
+    # network_mode: host # Not supported on Mac Docker Desktop
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "5349:5349/tcp"
+      - "5349:5349/udp"
+      # Range for TURN relay (must match min/max ports)
+      # Note: Exposing 65535 ports on Docker is slow/resource heavy.
+      # We will restrict the range to a smaller set for local dev (e.g., 49152-49200)
+      - "49152-49200:49152-49200/udp"
+    command:
+      - -n
+      - --lt-cred-mech
+      - --fingerprint
+      - --no-stdout-log
+      - --log-file=stdout
+      - --realm=mediamtx
+      - --user=mediamtx:mediamtxpassword
+      - --external-ip=webrtc.campuswatch.in
+      - --min-port=49152
+      - --max-port=49200 # Reduced range for Docker performance
+    restart: unless-stopped
 
   backend:
     build: ./backend
@@ -22,16 +81,50 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/cctvdb
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: root
+      MEDIAMTX_API_URL: http://mediamtx:8557
+      MEDIAMTX_API_USERNAME: admin
+      MEDIAMTX_API_PASSWORD: admin
+      MEDIAMTX_STREAM_BASE_URL: https://stream.campuswatch.in
+      MEDIAMTX_WEBRTC_BASE_URL: https://stream.campuswatch.in
+      MEDIAMTX_PUBLIC_HOST: "webrtc.campuswatch.in"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      mediamtx:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "https://api.campuswatch.in/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          memory: 256M
 
   frontend:
     build: .
     container_name: cctv-frontend
     ports:
       - "3000:8080"
+    environment:
+      REACT_APP_API_URL: https://api.campuswatch.in
+      REACT_APP_HLS_BASE_URL: https://stream.campuswatch.in
+      REACT_APP_WEBRTC_BASE_URL: https://webrtc.campuswatch.in
     depends_on:
-      - backend
+      backend:
+        condition: service_started
+      mediamtx:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
 volumes:
   postgres_data:
+  hls_data:

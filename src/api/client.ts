@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { logger } from '../utils/logger';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
+export const BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://api.campuswatch.in';
+const API_URL = `${BASE_URL}/api`;
 
 const client = axios.create({
     baseURL: API_URL,

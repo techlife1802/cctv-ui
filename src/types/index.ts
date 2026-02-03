@@ -1,3 +1,5 @@
+import { CAM_STATUS, NVR_TYPE, USER_ROLE } from '../constants';
+
 export interface NVR {
     id: string;
     key?: string;
@@ -7,9 +9,13 @@ export interface NVR {
     port: string;
     username: string;
     password?: string;
-    status: 'online' | 'offline';
-    type: 'Hikvision' | 'CP Plus';
+    status: CAM_STATUS;
+    type: NVR_TYPE;
     channels: number;
+    onvifPort?: string;
+    onvifUsername?: string;
+    onvifPassword?: string;
+    cameras?: any[]; // Backend expects list of Camera entities
 }
 
 export interface Camera {
@@ -17,9 +23,9 @@ export interface Camera {
     name: string;
     location: string;
     nvr: string;
-    status: 'online' | 'offline';
+    status: CAM_STATUS;
     thumbnail: string;
-    streamUrl?: string; // Proxy URL for the stream
+    streamUrl?: string;
 }
 
 export interface NvrGroup {
@@ -35,7 +41,8 @@ export interface User {
     id: string;
     username: string;
     password?: string;
-    role: 'admin' | 'user';
+    role: USER_ROLE;
+    locations?: string[];
     token?: string;
 }
 
@@ -54,3 +61,23 @@ export interface ApiResponse<T> {
     success: boolean;
     message?: string;
 }
+
+export interface StreamInfo {
+    webRtcUrl?: string;
+    hlsUrl?: string;
+    rtspUrl?: string;
+    streamId: string;
+    mediamtxEnabled: boolean;
+    iceServers?: { urls: string | string[]; username?: string; credential?: string }[];
+}
+
+export interface OnvifCamera {
+    name: string;
+    profileName: string;
+    channel: number;
+    profileToken: string;
+    streamUri: string;
+    status: string;
+}
+
+export { CAM_STATUS, NVR_TYPE, USER_ROLE } from '../constants';

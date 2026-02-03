@@ -1,0 +1,251 @@
+.camera-overview-container {
+    padding: 1.5rem;
+    height: 100%;
+    overflow-y: auto;
+    background-color: var(--bg-primary);
+
+    .overview-header {
+        margin-bottom: 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--bg-secondary);
+        padding: 1.25rem 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        flex-wrap: wrap;
+        gap: 16px;
+        border: 1px solid var(--border-color);
+
+        .title-section {
+            h4 {
+                font-size: 20px;
+                font-weight: 600;
+                color: var(--text-primary);
+            }
+
+            .stats {
+                font-size: 13px;
+                color: var(--text-secondary);
+            }
+        }
+
+        .overview-search {
+            width: 320px;
+            border-radius: 8px;
+            background: var(--bg-card);
+            border-color: var(--border-color);
+            color: var(--text-primary);
+
+            .ant-input {
+                background: transparent;
+                color: var(--text-primary);
+
+                &::placeholder {
+                    color: var(--text-secondary);
+                }
+            }
+
+            .ant-input-prefix {
+                color: var(--text-secondary);
+            }
+        }
+    }
+
+    .locations-collapse-wrapper {
+        .location-collapse {
+            background: var(--bg-secondary);
+            border-radius: 12px !important;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+
+            .ant-collapse-item {
+                border: none;
+                background: transparent;
+            }
+
+            .ant-collapse-header {
+                padding: 12px 24px !important;
+                align-items: center !important;
+                color: var(--text-primary) !important;
+
+                .location-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    cursor: pointer;
+                    padding: 4px 8px;
+                    border-radius: 6px;
+                    transition: background-color 0.2s;
+
+                    &:hover {
+                        background-color: rgba(24, 144, 255, 0.05);
+                    }
+
+                    .location-icon {
+                        font-size: 18px;
+                        color: var(--accent-color);
+                    }
+
+                    .location-title {
+                        margin: 0 !important;
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: var(--text-primary);
+                    }
+                }
+            }
+
+            .ant-collapse-content {
+                background: var(--bg-primary);
+                border-top: 1px solid var(--border-color);
+
+                .ant-collapse-content-box {
+                    padding: 0 16px 16px 16px !important;
+                }
+            }
+        }
+
+        .nvrs-wrapper {
+            margin-top: 16px;
+
+            .nvr-collapse {
+                background: transparent;
+                border: none;
+                margin-bottom: 8px;
+
+                .ant-collapse-item {
+                    border: 1px solid var(--border-color);
+                    border-radius: 8px !important;
+                    background: var(--bg-card);
+                    margin-bottom: 8px;
+
+                    &:last-child {
+                        margin-bottom: 0;
+                    }
+                }
+
+                .ant-collapse-header {
+                    padding: 8px 16px !important;
+                    background: transparent;
+                    border-radius: 8px !important;
+                    color: var(--text-primary) !important;
+                }
+
+                .ant-collapse-content {
+                    border-top: 1px solid var(--border-color);
+                    border-radius: 0 0 8px 8px !important;
+                    background: transparent;
+                }
+
+                .nvr-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    cursor: pointer;
+                    padding: 4px 8px;
+                    border-radius: 6px;
+                    transition: background-color 0.2s;
+
+                    &:hover {
+                        background-color: rgba(82, 196, 26, 0.05);
+                    }
+
+                    .nvr-icon {
+                        color: #52c41a;
+                    }
+
+                    .nvr-title {
+                        font-weight: 500;
+                        color: var(--text-primary);
+                    }
+                }
+            }
+        }
+    }
+
+    .camera-grid {
+        padding: 16px 0;
+    }
+
+    .camera-overview-card {
+        border-radius: 10px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid var(--border-color);
+        background: var(--bg-card);
+        overflow: hidden;
+
+        &:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            border-color: var(--accent-color);
+        }
+
+        &.status-online {
+            border-left: 4px solid #52c41a;
+        }
+
+        &.status-offline {
+            border-left: 4px solid #ff4d4f;
+            opacity: 0.8;
+        }
+
+        .camera-card-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+
+            .camera-icon-wrapper {
+                background: var(--bg-primary);
+                width: 36px;
+                height: 36px;
+                border-radius: 8px;
+                color: var(--accent-color);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 18px;
+                flex-shrink: 0;
+            }
+
+            .camera-info {
+                flex: 1;
+                min-width: 0;
+                display: flex;
+                flex-direction: column;
+
+                .camera-name {
+                    font-size: 14px;
+                    font-weight: 500;
+                    color: var(--text-primary);
+                }
+
+                .camera-status-tag {
+                    font-size: 10px;
+                    font-weight: 700;
+                    letter-spacing: 0.5px;
+                    margin-top: 2px;
+
+                    .status-online & {
+                        color: #52c41a;
+                    }
+
+                    .status-offline & {
+                        color: #ff4d4f;
+                    }
+                }
+            }
+        }
+    }
+}
+
+.camera-overview-empty {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+}

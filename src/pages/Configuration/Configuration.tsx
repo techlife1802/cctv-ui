@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Typography, Table, Input, Button, Modal, Form, Space, message, Select, Spin, Collapse, Tag } from 'antd';
+import { Typography, Table, Input, Button, Modal, Form, Space, message, Select, Spin, Collapse, Tag, Row, Col } from 'antd';
 import {
     PlusOutlined,
     SearchOutlined,
@@ -10,11 +10,12 @@ import {
     UserOutlined,
     VideoCameraOutlined
 } from '@ant-design/icons';
-import { NVR, User } from '../../types';
+import { NVR, User, OnvifCamera } from '../../types';
 import { nvrService, userService } from '../../services/apiService';
+import { NVR_TYPE, USER_ROLE } from '../../constants';
 import './Configuration.scss';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const Configuration: React.FC = () => {
     const [nvrData, setNvrData] = useState<NVR[]>([]);
@@ -27,14 +28,23 @@ const Configuration: React.FC = () => {
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [loadingNvrs, setLoadingNvrs] = useState(false);
     const [loadingUsers, setLoadingUsers] = useState(false);
+    const [locations, setLocations] = useState<string[]>([]);
     const [nvrForm] = Form.useForm();
     const [userForm] = Form.useForm();
+    const [isTesting, setIsTesting] = useState(false);
+    const [discoveryModalOpen, setDiscoveryModalOpen] = useState(false);
+    const [discoveredCameras, setDiscoveredCameras] = useState<OnvifCamera[]>([]);
+    const [testingNvrId, setTestingNvrId] = useState<string | null>(null);
+    const [hasDiscoveryRun, setHasDiscoveryRun] = useState(false);
 
     const fetchNvrs = async () => {
         try {
             setLoadingNvrs(true);
             const nvrs = await nvrService.getAll();
             setNvrData(nvrs);
+            // Extract unique locations from NVRs for the user location dropdown
+            const uniqueLocations = Array.from(new Set(nvrs.map((nvr: NVR) => nvr.location))).sort();
+            setLocations(uniqueLocations);
         } catch (error) {
             message.error('Failed to load NVRs');
         } finally {
@@ -61,18 +71,50 @@ const Configuration: React.FC = () => {
 
     const handleNvrSave = async (values: any) => {
         try {
+            // Include discovered cameras in the save payload
+            // Map discovered cameras to the backend Camera entity structure
+            const mappedCameras = discoveredCameras.map(cam => ({
+                name: cam.name || cam.profileName,
+                // Don't set streamPath here - let backend generate it from nvrId_channel
+                location: values.location,
+                channel: cam.channel,
+                streamUri: cam.streamUri,
+                profileToken: cam.profileToken,
+                status: cam.status
+            }));
+
+            // Use discovered cameras count for channels, or default to 0 if none found (implies manual/invalid)
+            // Only update cameras/channels if we actually have discovery results (or ran discovery and found 0)
+            // This prevents wiping data on simple edits (rename etc) where discovery wasn't re-run.
+
+            let payload = { ...values };
+
+            if (hasDiscoveryRun) {
+                payload.cameras = mappedCameras;
+                payload.channels = mappedCameras.length;
+            } else if (editingNvr) {
+                // If editing and no new discovery, preserve existing channel count (and don't send cameras to avoid wipe)
+                // Note: user might have changed other fields like name/ip, but we keep existing config
+                payload.channels = editingNvr.channels;
+            } else {
+                // Adding new, no discovery -> 0 channels
+                payload.channels = 0;
+            }
+
             if (editingNvr) {
-                const updatedNvr = { ...editingNvr, ...values };
+                const updatedNvr = { ...editingNvr, ...payload };
                 await nvrService.update(updatedNvr);
-                setNvrData(nvrData.map(item => item.id === editingNvr.id ? { ...item, ...values } : item));
+                // Refresh list to get updated data
+                fetchNvrs();
                 message.success('NVR updated successfully');
             } else {
-                const newNvr = await nvrService.add(values);
-                setNvrData([...nvrData, newNvr]);
+                await nvrService.add(payload);
+                fetchNvrs();
                 message.success('NVR added successfully');
             }
             resetNvrModal();
         } catch (error) {
+            console.error(error);
             message.error('Operation failed');
         }
     };
@@ -130,7 +172,41 @@ const Configuration: React.FC = () => {
     const resetNvrModal = () => {
         setIsNvrModalOpen(false);
         setEditingNvr(null);
+        setDiscoveredCameras([]);
+        setHasDiscoveryRun(false);
         nvrForm.resetFields();
+    };
+
+    const handleTestConnection = async () => {
+        try {
+            const values = await nvrForm.validateFields();
+            setIsTesting(true);
+
+            // Create a temporary NVR object for testing
+            // If type is ADIVA, use XMEYE for the backend connection test
+            const typeToSend = values.type === NVR_TYPE.ADIVA ? 'XMEYE' : values.type;
+
+            const tempNvr = {
+                ...values,
+                type: typeToSend as any,
+                id: editingNvr?.id || 'temp'
+            };
+
+            const cameras = await nvrService.testConnection(tempNvr);
+            setDiscoveredCameras(cameras);
+            setHasDiscoveryRun(true);
+            if (cameras.length > 0) {
+                message.success(`Successfully connected! Discovered ${cameras.length} cameras.`);
+            } else {
+                message.warning('Connected, but no cameras found via ONVIF.');
+            }
+        } catch (error: any) {
+            console.error('Test connection error:', error);
+            const errorMsg = error.response?.data?.message || error.message || 'Connection test failed. Please check credentials and ONVIF support.';
+            message.error(errorMsg);
+        } finally {
+            setIsTesting(false);
+        }
     };
 
     const resetUserModal = () => {
@@ -147,7 +223,7 @@ const Configuration: React.FC = () => {
 
     const filteredUserData = userData.filter(item =>
         item.username.toLowerCase().includes(userSearchText.toLowerCase()) ||
-        item.role.toLowerCase().includes(userSearchText.toLowerCase())
+        item.role.toString().toLowerCase().includes(userSearchText.toLowerCase())
     );
 
     const nvrColumns = [
@@ -155,12 +231,14 @@ const Configuration: React.FC = () => {
             title: 'Location',
             dataIndex: 'location',
             key: 'location',
+            width: 150,
             sorter: (a: NVR, b: NVR) => a.location.localeCompare(b.location),
         },
         {
             title: 'Type',
             dataIndex: 'type',
             key: 'type',
+            width: 120,
             filters: [
                 { text: 'Hikvision', value: 'Hikvision' },
                 { text: 'CP Plus', value: 'CP Plus' },
@@ -171,28 +249,33 @@ const Configuration: React.FC = () => {
             title: 'NVR Name',
             dataIndex: 'name',
             key: 'name',
+            width: 150,
             sorter: (a: NVR, b: NVR) => a.name.localeCompare(b.name),
         },
         {
             title: 'Channels',
             dataIndex: 'channels',
             key: 'channels',
+            width: 100,
             sorter: (a: NVR, b: NVR) => a.channels - b.channels,
         },
         {
             title: 'Static IP',
             dataIndex: 'ip',
             key: 'ip',
+            width: 150,
         },
         {
             title: 'Username',
             dataIndex: 'username',
             key: 'username',
+            width: 150,
         },
         {
             title: 'Password',
             dataIndex: 'password',
             key: 'password',
+            width: 180,
             render: (text: string) => (
                 <Input.Password
                     value={text}
@@ -205,6 +288,8 @@ const Configuration: React.FC = () => {
         {
             title: 'Actions',
             key: 'actions',
+            width: 120,
+            fixed: 'right' as const,
             render: (_: any, record: NVR) => (
                 <Space>
                     <Button
@@ -228,26 +313,44 @@ const Configuration: React.FC = () => {
             title: 'Username',
             dataIndex: 'username',
             key: 'username',
+            width: 150,
             sorter: (a: User, b: User) => a.username.localeCompare(b.username),
         },
         {
             title: 'Role',
             dataIndex: 'role',
             key: 'role',
+            width: 120,
             filters: [
-                { text: 'Admin', value: 'admin' },
-                { text: 'User', value: 'user' },
+                { text: 'ADMIN', value: 'ADMIN' },
+                { text: 'USER', value: 'USER' },
             ],
             onFilter: (value: any, record: User) => record.role === value,
             render: (role: string) => (
-                <Tag color={role === 'admin' ? 'blue' : 'green'}>
+                <Tag color={role === 'ADMIN' ? 'blue' : 'green'}>
                     {role.toUpperCase()}
                 </Tag>
             ),
         },
         {
+            title: 'Locations',
+            dataIndex: 'locations',
+            key: 'locations',
+            width: 300,
+            render: (locs: string[]) => (
+                <>
+                    {locs && locs.length > 0 ? (
+                        locs.map(loc => <Tag key={loc}>{loc}</Tag>)
+                    ) : (
+                        <Text type="secondary">All (Admin) or None</Text>
+                    )}
+                </>
+            ),
+        },
+        {
             title: 'Actions',
             key: 'actions',
+            width: 120,
             render: (_: any, record: User) => (
                 <Space>
                     <Button
@@ -310,6 +413,8 @@ const Configuration: React.FC = () => {
                             columns={nvrColumns}
                             dataSource={filteredNvrData}
                             loading={loadingNvrs}
+                            scroll={{ x: 1200 }}
+                            pagination={{ pageSize: 4, showSizeChanger: false }}
                         />
                     </div>
                 </Collapse.Panel>
@@ -345,6 +450,8 @@ const Configuration: React.FC = () => {
                             columns={userColumns}
                             dataSource={filteredUserData}
                             loading={loadingUsers}
+                            scroll={{ x: 800 }}
+                            pagination={{ pageSize: 4, showSizeChanger: false }}
                         />
                     </div>
                 </Collapse.Panel>
@@ -362,73 +469,154 @@ const Configuration: React.FC = () => {
                     layout="vertical"
                     onFinish={handleNvrSave}
                 >
-                    <Form.Item
-                        name="name"
-                        label="NVR Name"
-                        rules={[{ required: true, message: 'Please enter NVR name' }]}
-                    >
-                        <Input placeholder="e.g. Main Gate" />
+                    <Row gutter={16}>
+                        <Col span={8}>
+                            <Form.Item
+                                name="name"
+                                label="NVR Name"
+                                rules={[{ required: true, message: 'Please enter NVR name' }]}
+                            >
+                                <Input placeholder="e.g. Main Gate" />
+                            </Form.Item>
+                        </Col>
+                        <Col span={8}>
+                            <Form.Item
+                                name="location"
+                                label="Location"
+                                rules={[{ required: true, message: 'Please enter Location' }]}
+                            >
+                                <Input placeholder="e.g. Building A" />
+                            </Form.Item>
+                        </Col>
+                        <Col span={8}>
+                            <Form.Item
+                                name="type"
+                                label="NVR Type"
+                                rules={[{ required: true, message: 'Please select NVR Type' }]}
+                            >
+                                <Select placeholder="Select NVR Type">
+                                    <Select.Option value={NVR_TYPE.HIKVISION}>Hikvision</Select.Option>
+                                    <Select.Option value={NVR_TYPE.CP_PLUS}>CP Plus</Select.Option>
+                                    <Select.Option value={NVR_TYPE.ADIVA}>ADIVA</Select.Option>
+                                </Select>
+                            </Form.Item>
+                        </Col>
+                    </Row>
+
+                    <Row gutter={16}>
+                        <Col span={10}>
+                            <Form.Item
+                                name="ip"
+                                label="Static IP Address"
+                                rules={[
+                                    { required: true, message: 'Please enter IP Address' },
+                                    { pattern: /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/, message: 'Invalid IP address' }
+                                ]}
+                            >
+                                <Input placeholder="192.168.1.1" />
+                            </Form.Item>
+                        </Col>
+                        <Col span={8}>
+                            <Form.Item
+                                name="port"
+                                label="Port"
+                                rules={[{ required: true, message: 'Please enter Port' }]}
+                            >
+                                <Input placeholder="8000" />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+
+                    <Row gutter={16}>
+                        <Col span={8}>
+                            <Form.Item
+                                name="username"
+                                label="Username"
+                                rules={[{ required: true, message: 'Please enter Username' }]}
+                            >
+                                <Input />
+                            </Form.Item>
+                        </Col>
+                        <Col span={8}>
+                            <Form.Item
+                                name="password"
+                                label="Password"
+                                rules={[{ required: editingNvr ? false : true, message: 'Please enter Password' }]}
+                            >
+                                <Input.Password placeholder={editingNvr ? "Leave blank to keep current" : ""} />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+
+                    <Form.Item label="ONVIF Settings">
+                        <Row gutter={16}>
+                            <Col span={8}>
+                                <Form.Item
+                                    name="onvifPort"
+                                    label="NVR Port"
+                                >
+                                    <Input placeholder="8000" />
+                                </Form.Item>
+                            </Col>
+                            <Col span={8}>
+                                <Form.Item
+                                    name="onvifUsername"
+                                    label="Username"
+                                >
+                                    <Input placeholder="Leave blank to use RTSP username" />
+                                </Form.Item>
+                            </Col>
+                            <Col span={8}>
+                                <Form.Item
+                                    name="onvifPassword"
+                                    label="Password"
+                                >
+                                    <Input.Password placeholder="Leave blank to use RTSP password" />
+                                </Form.Item>
+                            </Col>
+                        </Row>
+                        <Button
+                            type="dashed"
+                            onClick={handleTestConnection}
+                            loading={isTesting}
+                            icon={<SearchOutlined />}
+                            style={{ width: '100%' }}
+                        >
+                            Test Connection & Fetch Cameras
+                        </Button>
                     </Form.Item>
-                    <Form.Item
-                        name="location"
-                        label="Location"
-                        rules={[{ required: true, message: 'Please enter Location' }]}
-                    >
-                        <Input placeholder="e.g. Building A" />
-                    </Form.Item>
-                    <Form.Item
-                        name="type"
-                        label="NVR Type"
-                        rules={[{ required: true, message: 'Please select NVR Type' }]}
-                    >
-                        <Select placeholder="Select NVR Type">
-                            <Select.Option value="Hikvision">Hikvision</Select.Option>
-                            <Select.Option value="CP Plus">CP Plus</Select.Option>
-                        </Select>
-                    </Form.Item>
-                    <Form.Item
-                        name="ip"
-                        label="Static IP Address"
-                        rules={[
-                            { required: true, message: 'Please enter IP Address' },
-                            { pattern: /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/, message: 'Invalid IP address' }
-                        ]}
-                    >
-                        <Input placeholder="192.168.1.1" />
-                    </Form.Item>
-                    <Form.Item
-                        name="port"
-                        label="Port"
-                        rules={[{ required: true, message: 'Please enter Port' }]}
-                    >
-                        <Input placeholder="8000" />
-                    </Form.Item>
-                    <Form.Item
-                        name="username"
-                        label="Username"
-                        rules={[{ required: true, message: 'Please enter Username' }]}
-                    >
-                        <Input />
-                    </Form.Item>
-                    <Form.Item
-                        name="password"
-                        label="Password"
-                        rules={[{ required: editingNvr ? false : true, message: 'Please enter Password' }]}
-                    >
-                        <Input.Password placeholder={editingNvr ? "Leave blank to keep current" : ""} />
-                    </Form.Item>
-                    <Form.Item
-                        name="channels"
-                        label="Number of Channels"
-                        initialValue={32}
-                        rules={[{ required: true, message: 'Please enter number of channels' }]}
-                    >
-                        <Input type="number" min={1} max={256} />
-                    </Form.Item>
-                    <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 0 }}>
+
+                    {discoveredCameras.length > 0 && (
+                        <div style={{ marginBottom: 20 }}>
+                            <Title level={5}>Discovered Cameras ({discoveredCameras.length})</Title>
+                            <Table
+                                size="small"
+                                dataSource={discoveredCameras}
+                                pagination={{ pageSize: 5 }}
+                                rowKey={(record) => record.profileToken || record.name}
+                                columns={[
+                                    { title: 'Name', dataIndex: 'name', key: 'name' },
+                                    { title: 'Profile', dataIndex: 'profileName', key: 'profileName' },
+                                    { title: 'Channel', dataIndex: 'channel', key: 'channel' },
+                                    {
+                                        title: 'Status',
+                                        dataIndex: 'status',
+                                        key: 'status',
+                                        render: (text) => <Tag color={text === 'Online' ? 'success' : 'error'}>{text}</Tag>
+                                    }
+                                ]}
+                            />
+                        </div>
+                    )}
+
+                    <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px', marginBottom: 0 }}>
                         <Space>
                             <Button onClick={resetNvrModal}>Cancel</Button>
-                            <Button type="primary" htmlType="submit">
+                            <Button
+                                type="primary"
+                                htmlType="submit"
+                                disabled={!hasDiscoveryRun || discoveredCameras.length === 0}
+                            >
                                 {editingNvr ? "Update Device" : "Add Device"}
                             </Button>
                         </Space>
@@ -465,12 +653,29 @@ const Configuration: React.FC = () => {
                     <Form.Item
                         name="role"
                         label="Role"
-                        initialValue="user"
+                        initialValue={USER_ROLE.USER}
                         rules={[{ required: true, message: 'Please select role' }]}
                     >
                         <Select>
-                            <Select.Option value="admin">Admin</Select.Option>
-                            <Select.Option value="user">User</Select.Option>
+                            <Select.Option value={USER_ROLE.ADMIN}>Admin</Select.Option>
+                            <Select.Option value={USER_ROLE.USER}>User</Select.Option>
+                        </Select>
+                    </Form.Item>
+
+                    <Form.Item
+                        name="locations"
+                        label="Assigned Locations"
+                        help="Select locations this user is allowed to access. Leave empty if Admin (full access)."
+                    >
+                        <Select
+                            mode="multiple"
+                            placeholder="Select locations"
+                            showSearch
+                            optionFilterProp="children"
+                        >
+                            {locations.map(loc => (
+                                <Select.Option key={loc} value={loc}>{loc}</Select.Option>
+                            ))}
                         </Select>
                     </Form.Item>
                     <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 0 }}>
@@ -482,6 +687,48 @@ const Configuration: React.FC = () => {
                         </Space>
                     </Form.Item>
                 </Form>
+            </Modal>
+
+            {/* Discovery Results Modal */}
+            <Modal
+                title="ONVIF Discovery Results"
+                open={discoveryModalOpen}
+                onCancel={() => setDiscoveryModalOpen(false)}
+                width={800}
+                footer={[
+                    <Button key="close" onClick={() => setDiscoveryModalOpen(false)}>
+                        Close
+                    </Button>
+                ]}
+            >
+                <Table
+                    size="small"
+                    dataSource={discoveredCameras}
+                    pagination={false}
+                    rowKey="profileToken"
+                    columns={[
+                        { title: 'Camera Name', dataIndex: 'name', key: 'name' },
+                        { title: 'Profile Name', dataIndex: 'profileName', key: 'profileName' },
+                        { title: 'Channel', dataIndex: 'channel', key: 'channel' },
+                        {
+                            title: 'Stream URI',
+                            dataIndex: 'streamUri',
+                            key: 'streamUri',
+                            ellipsis: true,
+                            render: (text) => <Typography.Text copyable={{ text }}>{text}</Typography.Text>
+                        },
+                        {
+                            title: 'Status',
+                            dataIndex: 'status',
+                            key: 'status',
+                            render: (text) => (
+                                <Tag color={text === 'Online' ? 'success' : 'error'}>
+                                    {text}
+                                </Tag>
+                            )
+                        }
+                    ]}
+                />
             </Modal>
         </div>
     );

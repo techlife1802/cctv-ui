@@ -1,70 +1,246 @@
-# Getting Started with Create React App
+# CCTV Application -- Docker Deployment Guide (Mac)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This guide explains how to **build Docker images on a Mac**, **push them
+to Docker Hub**, and **pull & run them on a client machine**, along with
+**Cloudflare Tunnel (cloudflared)** setup.
 
-## Available Scripts
+------------------------------------------------------------------------
 
-In the project directory, you can run:
+## 1. Prerequisites (Mac -- Build & Client)
 
-### `npm start`
+Install the following:
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+-   Docker Desktop for Mac
+-   Docker Hub account
+-   Cloudflare account (paid/free)
+-   Domain configured in Cloudflare DNS
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Verify:
 
-### `npm test`
+``` bash
+docker --version
+docker compose version
+cloudflared --version
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+------------------------------------------------------------------------
 
-### `npm run build`
+## 2. Docker Image Build (Mac -- Developer Machine)
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### 2.1 Login to Docker Hub
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+``` bash
+docker login
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+------------------------------------------------------------------------
 
-### `npm run eject`
+### 2.2 Build Frontend Image
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+From project root (where Dockerfile exists):
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+``` bash
+docker build -t <dockerhub-username>/cctv-frontend:latest .
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+------------------------------------------------------------------------
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### 2.3 Build Backend Image
 
-## Learn More
+``` bash
+cd backend
+docker build -t <dockerhub-username>/cctv-backend:latest .
+cd ..
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+------------------------------------------------------------------------
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### 2.4 Push Images to Docker Hub
 
-### Code Splitting
+``` bash
+docker push <dockerhub-username>/cctv-frontend:latest
+docker push <dockerhub-username>/cctv-backend:latest
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+------------------------------------------------------------------------
 
-### Analyzing the Bundle Size
+## 3. Update docker-compose.yml (Client Side)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+Replace build sections with images:
 
-### Making a Progressive Web App
+``` yaml
+backend:
+  image: <dockerhub-username>/cctv-backend:latest
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+frontend:
+  image: <dockerhub-username>/cctv-frontend:latest
+```
 
-### Advanced Configuration
+Remove:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+``` yaml
+build:
+```
 
-### Deployment
+------------------------------------------------------------------------
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+## 4. Client Machine -- Pull & Run Containers (Mac)
 
-### `npm run build` fails to minify
+### 4.1 Login to Docker Hub
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+``` bash
+docker login
+```
+
+------------------------------------------------------------------------
+
+### 4.2 Pull Images
+
+``` bash
+docker pull <dockerhub-username>/cctv-backend:latest
+docker pull <dockerhub-username>/cctv-frontend:latest
+```
+
+------------------------------------------------------------------------
+
+### 4.3 Start Application
+
+``` bash
+docker compose up -d
+```
+
+Check status:
+
+``` bash
+docker compose ps
+docker logs -f cctv-backend
+```
+
+------------------------------------------------------------------------
+
+### 4.4 Conenct to db and verify all tables are created
+``` bash
+docker exec -it cctv-db psql -U postgres -d cctvdb
+
+to view all tables 
+\dt
+             List of relations
+ Schema |      Name      | Type  |  Owner   
+--------+----------------+-------+----------
+ public | cameras        | table | postgres
+ public | nvrs           | table | postgres
+ public | user_audit     | table | postgres
+ public | user_locations | table | postgres
+ public | users          | table | postgres
+
+to check all tables 
+
+select * from users;
+
+``` 
+
+------------------------------------------------------------------------
+
+## 5. Cloudflare Tunnel (cloudflared)
+
+### 5.1 Install cloudflared (Mac)
+
+``` bash
+brew install cloudflare/cloudflare/cloudflared
+```
+
+------------------------------------------------------------------------
+
+### 5.2 Login to Cloudflare
+
+``` bash
+cloudflared login
+```
+
+Authorize domain in browser.
+
+------------------------------------------------------------------------
+
+### 5.3 Create Tunnel
+
+``` bash
+cloudflared tunnel create cctv-tunnel
+```
+
+------------------------------------------------------------------------
+
+### 5.4 Configure Tunnel
+
+Create config file:
+
+``` bash
+mkdir -p ~/.cloudflared
+nano ~/.cloudflared/config.yml
+```
+
+Example:
+
+``` yaml
+tunnel: cctv-tunnel
+credentials-file: /Users/<user>/.cloudflared/<tunnel-id>.json
+
+ingress:
+  - hostname: api.campuswatch.in
+    service: http://localhost:8080
+  - hostname: stream.campuswatch.in
+    service: http://localhost:8888
+  - hostname: webrtc.campuswatch.in
+    service: http://localhost:8889
+  - service: http_status:404
+```
+
+------------------------------------------------------------------------
+
+### 5.5 DNS Mapping, This is only required to be done one time
+
+``` bash
+cloudflared tunnel route dns campus-watch api.campuswatch.in
+cloudflared tunnel route dns campus-watch stream.campuswatch.in
+cloudflared tunnel route dns campus-watch webrtc.campuswatch.in
+```
+
+------------------------------------------------------------------------
+
+### 5.6 Run Tunnel
+
+``` bash
+cloudflared tunnel run campus-watch
+```
+
+To run in background:
+
+``` bash
+cloudflared service install
+```
+
+------------------------------------------------------------------------
+
+## 6. Ports Used
+
+  Service    Port
+  ---------- ------
+  Backend    8080
+  Frontend   3000
+  RTSP       8554
+  HLS        8888
+  WebRTC     8889
+  TURN       3478
+  Postgres   5433
+
+------------------------------------------------------------------------
+
+## 7. Stop & Cleanup
+
+``` bash
+docker compose down
+docker system prune -f
+```
+
+------------------------------------------------------------------------
+
+✅ Deployment Ready

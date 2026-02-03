@@ -1,261 +1,565 @@
-.dashboard-page {
-    height: 100%;
+.dashboard-container {
     display: flex;
-    flex-direction: column;
+    height: calc(100vh - 64px); // Adjust based on header height
+    overflow: hidden;
+    background: var(--bg-primary);
+    position: relative;
 
-    .dashboard-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 24px;
-        position: sticky;
-        z-index: 10;
-        background: var(--video-grid-bg);
-        padding: 0.5rem 1rem;
-        border-bottom: 1px solid var(--border-color);
-        border-radius: 0.5rem;
-        flex: 0 0 auto;
+    &.fullscreen-mode {
+        position: fixed;
+        inset: 0;
+        height: 100vh;
+        z-index: 9999;
+        margin-top: 0 !important;
 
-        .location-selector {
-            width: 200px;
+        .dashboard-sidebar {
+            width: 0 !important;
+            flex: 0 0 0 !important;
+            overflow: hidden;
+        }
+
+        .dashboard-main {
+            padding: 1rem;
+
+            .mobile-menu-button {
+                display: none !important; // Hide menu toggle in full screen
+            }
+
+            .nvr-grid-container {
+                .grid-header {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    margin-bottom: 1rem;
+                    width: 100%;
+
+                    h4 {
+                        display: none; // Hide title in fullscreen
+                    }
+
+                    .pagination-controls {
+                        background: rgba(0, 0, 0, 0.6);
+                        backdrop-filter: blur(4px);
+                        border: 1px solid rgba(255, 255, 255, 0.1);
+
+                        .pagination-info {
+                            display: none;
+                        }
+
+                        // Only show navigation and fullscreen toggle
+                    }
+                }
+            }
         }
     }
 
-    .nvr-collapse {
-        flex: 1;
-        overflow-y: auto;
-        padding: 0 1rem;
+    .dashboard-sidebar {
+        width: 300px;
+        flex: 0 0 300px;
+        border-right: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        display: flex;
+        flex-direction: column;
+        transition: all 0.3s ease;
+        overflow: hidden;
 
-        .ant-collapse-item {
-            background: var(--nvr-panel-bg);
-            margin-bottom: 16px;
-            border-radius: 8px !important;
-            border: 1px solid var(--border-color);
-            overflow: hidden;
+        &.collapsed {
+            width: 0;
+            flex: 0 0 0;
+            border-right: none;
+        }
 
-            .ant-collapse-header {
-                padding: 12px 16px !important;
-                align-items: center !important;
-                color: var(--text-primary) !important;
+        @media (max-width: 768px) {
+            position: fixed;
+            left: -300px;
+            top: 64px;
+            bottom: 0;
+            z-index: 1000;
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+
+            &.open {
+                left: 0;
+                width: 300px; // Reset width for mobile open state
+                flex: 0 0 300px;
             }
         }
 
-        .nvr-panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-            padding-right: 24px;
+        // ... rest of sidebar styles
 
-            .nvr-title {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                font-size: 16px;
-                font-weight: 600;
+        .sidebar-header {
+            padding: 1.5rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+
+            @media (max-width: 768px) {
+                padding: 1rem 0.75rem;
+            }
+
+            .sidebar-title {
+                margin-bottom: 1rem !important;
                 color: var(--text-primary);
 
-                .anticon {
-                    color: var(--accent-color);
+                @media (max-width: 768px) {
+                    font-size: 1.1rem !important;
                 }
             }
 
-            .nvr-badges {
+            .sidebar-search {
+                border-radius: 6px;
+            }
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+
+            @media (max-width: 768px) {
+                padding: 0.75rem;
+            }
+
+            .sidebar-tree {
+                background: transparent;
+                color: var(--text-primary);
+
+                .ant-tree-node-content-wrapper:hover {
+                    background-color: var(--bg-hover) !important;
+                }
+
+                .ant-tree-node-selected {
+                    background-color: var(--primary-color-alpha) !important;
+                }
+            }
+
+            .sidebar-tree-node {
                 display: flex;
+                align-items: center;
                 gap: 8px;
-            }
-        }
+                font-size: 14px;
 
-        .ant-collapse-content-box {
-            padding: 16px !important;
-            background: rgba(0, 0, 0, 0.05);
+                .node-icon {
+                    font-size: 16px;
+                }
+
+                .location-icon {
+                    color: #1890ff;
+                }
+
+                .nvr-icon {
+                    color: #52c41a;
+                }
+
+                .camera-icon {
+                    color: #faad14;
+                }
+
+                &.camera-node {
+                    font-size: 13px;
+                }
+            }
         }
     }
 
-    .video-grid {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 24px;
-        align-content: flex-start;
+    // Overlay for mobile sidebar
+    .sidebar-overlay {
+        display: none;
+
+        @media (max-width: 768px) {
+            display: block;
+            position: fixed;
+            inset: 0;
+            top: 64px;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            animation: fadeIn 0.3s ease;
+        }
+    }
+
+    .dashboard-main {
         flex: 1;
-        overflow-y: auto;
-        padding-right: 8px;
-        padding-bottom: 24px;
-
-        &.nested {
-            flex: none;
-            overflow-y: visible;
-            padding: 0;
-            margin-bottom: 8px;
-        }
-
-        // Custom Scrollbar
-        &::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        &::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        &::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 3px;
-        }
-
-        &::-webkit-scrollbar-thumb:hover {
-            background: var(--text-secondary);
-        }
-    }
-
-    .camera-card {
-        // Flexbox 4-column math: 
-        // 100% width / 4 items = 25%
-        // Gap is 24px. 3 gaps per row = 72px total gap space.
-        // Distributed removal from each item: 72px / 4 = 18px.
-        width: calc(25% - 18px);
-
-        background: #000;
-        border-radius: 8px;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        padding: 1.5rem;
+        padding-top: 4rem; // Make room for menu/collapse button on all screens
+        background: var(--video-grid-bg);
         position: relative;
-        cursor: pointer;
-        aspect-ratio: 16/9;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: transform 0.2s, box-shadow 0.2s;
-        min-width: 0; // CRITICAL: Allows grid item to shrink below content size
 
-        &:hover {
-            transform: scale(1.02);
-            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
-            z-index: 1;
+        @media (max-width: 768px) {
+            padding: 0.75rem;
+            padding-top: 3.5rem;
+        }
 
-            .camera-overlay {
-                opacity: 1;
+        // Mobile menu button / Desktop collapse button
+        .mobile-menu-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            top: 0.75rem;
+            left: 0.75rem;
+            z-index: 10;
+            width: 40px;
+            height: 40px;
+            background: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transition: all 0.2s ease;
+
+            &:hover {
+                background: #40a9ff;
+                transform: scale(1.05);
+            }
+
+            &:active {
+                transform: scale(0.95);
             }
         }
 
-        img {
-            position: absolute; // Take out of flow to respect aspect-ratio
-            top: 0;
-            left: 0;
-            width: 100%;
+        .loading-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .empty-grid-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+
+        .nvr-grid-container {
             height: 100%;
-            object-fit: cover;
-            opacity: 0.8;
-            transition: opacity 0.3s;
+            display: flex;
+            flex-direction: column;
+
+            .grid-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 1.5rem;
+                flex: 0 0 auto;
+                gap: 1rem;
+
+                @media (max-width: 768px) {
+                    flex-direction: row; // Keep header items in row on mobile
+                    align-items: center;
+                    margin-bottom: 1rem;
+                    gap: 0.75rem;
+                }
+
+                h4 {
+                    @media (max-width: 768px) {
+                        display: none !important;
+                    }
+                }
+
+                .pagination-controls {
+                    display: flex;
+                    align-items: center;
+                    gap: 1.5rem;
+                    background: var(--bg-secondary);
+                    padding: 8px 16px;
+                    border-radius: 8px;
+                    border: 1px solid var(--border-color);
+                    flex-wrap: wrap;
+
+                    @media (max-width: 768px) {
+                        width: auto;
+                        gap: 0.5rem;
+                        padding: 4px 8px;
+                        flex-direction: row; // Horizontal on mobile too
+                        background: transparent;
+                        border: none;
+                    }
+
+                    .pagination-buttons {
+                        display: flex;
+                        gap: 8px;
+
+                        @media (max-width: 768px) {
+                            width: auto;
+
+                            button {
+                                padding: 4px 8px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+
+                                .anticon {
+                                    margin: 0 !important;
+                                }
+                            }
+                        }
+                    }
+
+                    .btn-text {
+                        @media (max-width: 768px) {
+                            display: none; // Hide text on mobile
+                        }
+                    }
+
+                    .pagination-info {
+                        color: var(--text-secondary);
+                        font-size: 14px;
+
+                        @media (max-width: 768px) {
+                            display: none; // Hide info text on mobile to save space
+                        }
+                    }
+
+                    .pagination-auto-rotate {
+                        @media (max-width: 768px) {
+                            width: auto;
+                            padding: 4px 8px;
+
+                            .anticon {
+                                margin: 0 !important;
+                            }
+                        }
+                    }
+                }
+            }
+
+            .video-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                // grid-template-rows: repeat(2, 1fr); // Allow rows to flow naturally
+                gap: 16px;
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto; // Enable scroll for overflow
+
+                @media (max-width: 1400px) {
+                    grid-template-columns: repeat(2, 1fr);
+                    grid-template-rows: repeat(3, 1fr);
+                }
+
+                // Landscape mode on mobile devices (e.g. iPhone horizontal)
+                @media (max-width: 900px) and (orientation: landscape) {
+                    grid-template-columns: repeat(2, 1fr);
+                    grid-template-rows: auto;
+                    overflow-y: auto;
+                }
+
+                @media (max-width: 900px) and (orientation: portrait) {
+                    grid-template-columns: 1fr;
+                    grid-template-rows: auto;
+                    overflow-y: auto;
+                    gap: 12px;
+                }
+
+                @media (max-width: 576px) {
+                    gap: 10px;
+                }
+            }
+        }
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+// Camera Card and other existing styles preserved and adapted
+.camera-card {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    @media (max-width: 768px) {
+        border-radius: 8px;
+    }
+
+    &:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+
+        @media (max-width: 768px) {
+            transform: none; // Disable hover effect on mobile
         }
 
         .camera-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, transparent 40%, transparent 60%, rgba(0, 0, 0, 0.8) 100%);
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, transparent 40%, transparent 60%, rgba(0, 0, 0, 0.9) 100%);
+        }
+    }
+
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.8;
+    }
+
+    .camera-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to bottom, rgba(0, 0, 0, 0.4) 0%, transparent 40%, transparent 60%, rgba(0, 0, 0, 0.6) 100%);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 1rem;
+        color: #fff;
+
+        @media (max-width: 768px) {
+            padding: 0.75rem;
+        }
+
+        .status-badge {
+            align-self: flex-start;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
             display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 12px;
-            color: #fff;
-            transition: opacity 0.3s;
+            align-items: center;
+            gap: 6px;
+            backdrop-filter: blur(4px);
 
-            .status-badge {
-                align-self: flex-start;
-                background: rgba(82, 196, 26, 0.8);
-                padding: 4px 8px;
-                border-radius: 4px;
+            @media (max-width: 768px) {
                 font-size: 10px;
-                font-weight: bold;
-                text-transform: uppercase;
-                display: flex;
-                align-items: center;
-                gap: 4px;
+                padding: 3px 8px;
+            }
 
-                &.offline {
-                    background: rgba(255, 77, 79, 0.8);
-                }
+            &.online {
+                background: rgba(82, 196, 26, 0.2);
+                border: 1px solid rgba(82, 196, 26, 0.4);
+                color: #52c41a;
+            }
 
-                .dot {
-                    width: 6px;
-                    height: 6px;
-                    background: #fff;
-                    border-radius: 50%;
-                    animation: pulse 1.5s infinite;
+            &.offline {
+                background: rgba(255, 77, 79, 0.2);
+                border: 1px solid rgba(255, 77, 79, 0.4);
+                color: #ff4d4f;
+            }
+
+            &.loading {
+                background: rgba(24, 144, 255, 0.2);
+                border: 1px solid rgba(24, 144, 255, 0.4);
+                color: #1890ff;
+            }
+        }
+
+        .camera-info {
+            h4 {
+                margin: 0;
+                color: #fff;
+                font-size: 15px;
+                font-weight: 600;
+                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+
+                @media (max-width: 768px) {
+                    font-size: 13px;
                 }
             }
 
-            .camera-info {
-                h4 {
-                    margin: 0;
-                    font-size: 14px;
-                    font-weight: 500;
-                    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-                }
+            p {
+                margin: 4px 0 0;
+                font-size: 12px;
+                opacity: 0.8;
 
-                p {
-                    margin: 0;
+                @media (max-width: 768px) {
                     font-size: 11px;
-                    opacity: 0.8;
                 }
+            }
+        }
+
+        .audio-toggle {
+            @media (max-width: 768px) {
+                font-size: 14px;
+                padding: 6px;
             }
         }
     }
 }
 
-@keyframes pulse {
-    0% {
-        opacity: 1;
-        transform: scale(1);
-    }
-
-    50% {
-        opacity: 0.5;
-        transform: scale(0.8);
-    }
-
-    100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-
-// Fullscreen Modal overrides
+// Modal and other global styles remain similar but refactored for the new look
 .fullscreen-video-modal {
-    top: 20px;
-
     .ant-modal-content {
         background: #000;
-        padding: 0;
+        border-radius: 12px;
         overflow: hidden;
-        border-radius: 8px;
-        box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-    }
 
-    .ant-modal-body {
-        padding: 0 !important;
-        height: 80vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        background: #000;
-
-        // Ensure the wrapper div takes full height
-        >div {
-            width: 100%;
-            height: 100%;
+        @media (max-width: 768px) {
+            border-radius: 0;
         }
     }
 
-    .ant-modal-close {
-        top: 10px;
-        right: 10px;
-        color: rgba(255, 255, 255, 0.7);
+    @media (max-width: 768px) {
+        top: 0 !important;
+        max-width: 100vw !important;
+        margin: 0 !important;
+        padding: 0 !important;
 
-        &:hover {
-            color: #fff;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
+        .ant-modal-content {
+            height: 100vh;
+        }
+    }
+
+    .modal-video-container {
+        border-radius: 8px;
+        overflow: hidden;
+
+        .recording-indicator,
+        .talking-indicator {
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+
+            @media (max-width: 768px) {
+                font-size: 11px;
+                padding: 3px 8px;
+            }
+        }
+    }
+
+    // Fix for mobile modal footer buttons
+    .ant-modal-footer {
+        @media (max-width: 768px) {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px;
+
+            button {
+                margin: 0 !important;
+                flex: 1 1 calc(50% - 8px);
+                min-width: unset;
+                font-size: 12px;
+                height: 36px;
+                padding: 4px 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+
+                .anticon {
+                    font-size: 14px;
+                }
+
+                // Make the Close button full width
+                &:last-child {
+                    flex: 1 1 100%;
+                }
+            }
         }
     }
 }
