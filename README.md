@@ -224,35 +224,57 @@ mkdir -p ~/scripts
 nano ~/scripts/start-campus-watch.sh
 
 Paste exactly this:
+``` bash
 
 #!/bin/bash
 
 # Ensure PATH for launchd
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-# Wait for Docker Desktop to be ready
+# --- 1. Wait for Docker Desktop to be ready ---
+echo "Waiting for Docker Desktop..."
 until docker info >/dev/null 2>&1; do
-  sleep 5
+  sleep 10
 done
+echo "Docker is ready ✅"
 
-# Go to docker-compose directory
+# --- 2. Go to docker-compose directory ---
 cd /Users/apple/campus-watch || exit 1
 
-# Start Docker Compose
+# --- 3. Start Docker Compose services ---
 docker compose up -d
+echo "Docker Compose services started ✅"
 
-# Start Cloudflare Tunnel (HTTP/2 to avoid SRV DNS issues)
+# --- 4. Wait for CCTV Backend to be fully up ---
+CONTAINER_NAME="cctv-backend"
+SUCCESS_STRING="Application is up and running"  # <-- Replace with your actual log message
+
+echo "Waiting for $CONTAINER_NAME to be ready..."
+docker logs -f --tail 50 $CONTAINER_NAME 2>&1 | while read -r line; do
+    echo "$line"  # Optional: prints log output to terminal
+    if [[ "$line" == *"$SUCCESS_STRING"* ]]; then
+        # Notify user
+        osascript -e 'Campus watch App is up and runnig on server'
+        pkill -P $$ docker  # Stop following logs
+        break
+    fi
+done
+
+# --- 5. Start Cloudflare Tunnel ---
 cloudflared tunnel run --protocol http2 campus-watch
-
-Make Script executable 
-
+echo "Cloudflare Tunnel started ✅"
+```
+###Make Script executable 
+``` bash
 chmod +x ~/scripts/start-campus-watch.sh
 
 mkdir -p ~/Library/LaunchAgents
 
 nano ~/Library/LaunchAgents/com.apple.campuswatch.startup.plist
+```
 
-Paste this exactly : 
+###Paste this exactly : 
+
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
