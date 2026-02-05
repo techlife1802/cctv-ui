@@ -66,6 +66,10 @@ frontend:
   image: <dockerhub-username>/cctv-frontend:latest
 ```
 
+Also add these changes in docker-compose.yml to run on Intel Mac 
+ platform: linux/arm64
+    image: ghcr.io/techlife1802/cctv-backend:latest
+
 Remove:
 
 ``` yaml
@@ -213,30 +217,73 @@ To run in background:
 ``` bash
 cloudflared service install
 ```
+###### 5.7 Add Scripts to run on Startup in MAC
 
-------------------------------------------------------------------------
+mkdir -p ~/scripts
 
-## 6. Ports Used
+nano ~/scripts/start-campus-watch.sh
 
-  Service    Port
-  ---------- ------
-  Backend    8080
-  Frontend   3000
-  RTSP       8554
-  HLS        8888
-  WebRTC     8889
-  TURN       3478
-  Postgres   5433
+Paste exactly this:
 
-------------------------------------------------------------------------
+#!/bin/bash
 
-## 7. Stop & Cleanup
+# Ensure PATH for launchd
+export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-``` bash
-docker compose down
-docker system prune -f
-```
+# Wait for Docker Desktop to be ready
+until docker info >/dev/null 2>&1; do
+  sleep 5
+done
 
-------------------------------------------------------------------------
+# Go to docker-compose directory
+cd /Users/apple/campus-watch || exit 1
+
+# Start Docker Compose
+docker compose up -d
+
+# Start Cloudflare Tunnel (HTTP/2 to avoid SRV DNS issues)
+cloudflared tunnel run --protocol http2 campus-watch
+
+Make Script executable 
+
+chmod +x ~/scripts/start-campus-watch.sh
+
+mkdir -p ~/Library/LaunchAgents
+
+nano ~/Library/LaunchAgents/com.apple.campuswatch.startup.plist
+
+Paste this exactly : 
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+
+    <key>Label</key>
+    <string>com.apple.campuswatch.startup</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/Users/apple/scripts/start-campus-watch.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/campuswatch.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/campuswatch.err.log</string>
+
+  </dict>
+</plist>
+
+
+………
+launchctl load ~/Library/LaunchAgents/com.apple.campuswatch.startup.plist
 
 ✅ Deployment Ready
