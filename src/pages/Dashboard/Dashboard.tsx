@@ -419,7 +419,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
         <div className={`nvr-grid-container ${isFullscreen ? 'fullscreen' : ''}`}>
             <div className="grid-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Title level={4} style={{ margin: 0 }}>Selected Cameras ({cameras.length})</Title>
+                    <Title level={4} style={{ margin: 0 }}>Cameras ({cameras.length})</Title>
                     <Select
                         value={gridSize}
                         style={{ width: 100 }}

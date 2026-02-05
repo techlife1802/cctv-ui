@@ -576,13 +576,12 @@ const Configuration: React.FC = () => {
                             </Col>
                         </Row>
                         <Button
-                            type="dashed"
+                            type="primary"
                             onClick={handleTestConnection}
                             loading={isTesting}
-                            icon={<SearchOutlined />}
                             style={{ width: '100%' }}
                         >
-                            Test Connection & Fetch Cameras
+                            Fetch Cameras & Add NVR
                         </Button>
                     </Form.Item>
 

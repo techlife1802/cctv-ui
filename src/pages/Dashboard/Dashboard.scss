@@ -34,7 +34,11 @@
                     width: 100%;
 
                     h4 {
-                        display: none; // Hide title in fullscreen
+                        white-space: nowrap;
+
+                        @media (max-width: 768px) {
+                            display: none !important;
+                        }
                     }
 
                     .pagination-controls {
@@ -54,8 +58,8 @@
     }
 
     .dashboard-sidebar {
-        width: 300px;
-        flex: 0 0 300px;
+        width: 250px;
+        flex: 0 0 250px;
         border-right: 1px solid var(--border-color);
         background: var(--bg-secondary);
         display: flex;
@@ -71,7 +75,7 @@
 
         @media (max-width: 768px) {
             position: fixed;
-            left: -300px;
+            left: -250px;
             top: 64px;
             bottom: 0;
             z-index: 1000;
@@ -79,8 +83,8 @@
 
             &.open {
                 left: 0;
-                width: 300px; // Reset width for mobile open state
-                flex: 0 0 300px;
+                width: 250px; // Reset width for mobile open state
+                flex: 0 0 250px;
             }
         }
 
@@ -254,8 +258,19 @@
                     gap: 0.75rem;
                 }
 
+                // Target wrapper of Title and Select
+                >div:first-child {
+                    @media (max-width: 1024px) {
+                        flex-direction: column !important;
+                        align-items: flex-start !important;
+                        gap: 2px !important;
+                    }
+                }
+
                 h4 {
-                    @media (max-width: 768px) {
+                    white-space: nowrap;
+
+                    @media (max-width: 576px) {
                         display: none !important;
                     }
                 }
