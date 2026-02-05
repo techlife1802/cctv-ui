@@ -113,6 +113,7 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                     }
                 }
 
+
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
 

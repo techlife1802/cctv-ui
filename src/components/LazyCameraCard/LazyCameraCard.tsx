@@ -8,6 +8,7 @@ interface LazyCameraCardProps {
     onStreamReady?: (camera: Camera, stream: MediaStream) => void;
     index?: number;
     rootMargin?: string; // Intersection Observer root margin
+    useSubstream?: boolean;
 }
 
 /**
@@ -19,7 +20,8 @@ const LazyCameraCard: React.FC<LazyCameraCardProps> = ({
     onClick,
     onStreamReady,
     index = 0,
-    rootMargin = '100px'
+    rootMargin = '100px',
+    useSubstream = false
 }) => {
     const [isInView, setIsInView] = useState(false);
     const cardRef = useRef<HTMLDivElement>(null);
@@ -56,6 +58,7 @@ const LazyCameraCard: React.FC<LazyCameraCardProps> = ({
                     onClick={onClick}
                     onStreamReady={onStreamReady}
                     index={index}
+                    useSubstream={useSubstream}
                 />
             ) : (
                 <div

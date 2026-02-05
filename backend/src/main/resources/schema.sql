@@ -50,4 +50,10 @@ CREATE TABLE IF NOT EXISTS user_audit (
     ip_address VARCHAR(50)
 );
 
+CREATE TABLE IF NOT EXISTS user_assigned_cameras (
+    user_id VARCHAR(255) NOT NULL,
+    camera_id VARCHAR(255) NOT NULL,
+    CONSTRAINT fk_user_assigned_cameras_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 INSERT INTO users (id, username, password, role) VALUES ('1', 'admin', 'admin', 'ADMIN') ON CONFLICT (username) DO UPDATE SET role = EXCLUDED.role, password = EXCLUDED.password;

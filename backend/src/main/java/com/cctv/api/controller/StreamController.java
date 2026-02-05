@@ -8,7 +8,6 @@ import com.cctv.api.service.HlsService;
 import com.cctv.api.service.MediaMtxService;
 import com.cctv.api.service.NvrService;
 import com.cctv.api.service.UserAuditService;
-import com.cctv.api.service.UserService;
 import com.cctv.api.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +50,7 @@ public class StreamController {
         }
 
         java.util.Set<String> allowedLocations = null;
+        java.util.Set<String> assignedCameraIds = null;
         if (principal != null) {
             User user = userRepository.findByUsername(principal.getName()).orElse(null);
             if (user != null && user.getRole() != UserRole.ADMIN) {
@@ -59,10 +59,15 @@ public class StreamController {
                 } else {
                     allowedLocations = new java.util.HashSet<>(); // No access
                 }
+
+                if (user.getAssignedCameraIds() != null && !user.getAssignedCameraIds().isEmpty()) {
+                    assignedCameraIds = user.getAssignedCameraIds();
+                }
             }
         }
 
-        List<CameraStreamDto> streams = nvrService.getCameraStreams(location, nvrId, allowedLocations);
+        List<CameraStreamDto> streams = nvrService.getCameraStreams(location, nvrId, allowedLocations,
+                assignedCameraIds);
         log.debug("Found {} streams", streams.size());
         return streams;
     }
@@ -122,10 +127,11 @@ public class StreamController {
     public ResponseEntity<StreamInfoDto> getStreamInfo(
             @PathVariable String nvrId,
             @PathVariable int channelId,
+            @RequestParam(required = false, defaultValue = "false") boolean substream,
             Principal principal,
             HttpServletRequest request) {
 
-        log.debug("Stream info request for NVR: {}, Channel: {}", nvrId, channelId);
+        log.debug("Stream info request for NVR: {}, Channel: {}, Substream: {}", nvrId, channelId, substream);
 
         if (principal != null) {
             userAuditService.logNvrAccess(principal.getName(), nvrId, request.getRemoteAddr());
@@ -133,10 +139,10 @@ public class StreamController {
 
         // Get RTSP URL first
         String rtspUrl = nvrService.generateStreamUrl(
-                nvrService.getNvrById(nvrId), channelId);
+                nvrService.getNvrById(nvrId), channelId, substream);
 
         // Explicitly configure the path in MediaMTX via API
-        String pathName = nvrId + "_" + channelId;
+        String pathName = nvrId + "_" + channelId + (substream ? "_sub" : "");
         try {
             Boolean configured = mediaMtxService.configurePath(pathName, rtspUrl)
                     .block(java.time.Duration.ofSeconds(5));
@@ -147,7 +153,8 @@ public class StreamController {
             log.error("Error configuring MediaMTX path: {}. Error: {}", pathName, e.getMessage());
         }
 
-        StreamInfoDto streamInfo = mediaMtxService.getStreamInfo(nvrId, channelId, rtspUrl, request.getServerName());
+        StreamInfoDto streamInfo = mediaMtxService.getStreamInfo(nvrId, channelId, substream, rtspUrl,
+                request.getServerName());
 
         if (streamInfo != null) {
             return ResponseEntity.ok(streamInfo);

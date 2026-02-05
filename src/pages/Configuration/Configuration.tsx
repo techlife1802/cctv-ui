@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Typography, Table, Input, Button, Modal, Form, Space, message, Select, Spin, Collapse, Tag, Row, Col } from 'antd';
+import { Typography, Table, Input, Button, Modal, Form, Space, message, Select, Spin, Collapse, Tag, Row, Col, TreeSelect, Checkbox, Tree } from 'antd';
 import {
     PlusOutlined,
     SearchOutlined,
@@ -10,8 +10,8 @@ import {
     UserOutlined,
     VideoCameraOutlined
 } from '@ant-design/icons';
-import { NVR, User, OnvifCamera } from '../../types';
-import { nvrService, userService } from '../../services/apiService';
+import { NVR, User, OnvifCamera, Camera } from '../../types';
+import { nvrService, userService, cameraService } from '../../services/apiService';
 import { NVR_TYPE, USER_ROLE } from '../../constants';
 import './Configuration.scss';
 
@@ -33,16 +33,19 @@ const Configuration: React.FC = () => {
     const [userForm] = Form.useForm();
     const [isTesting, setIsTesting] = useState(false);
     const [discoveryModalOpen, setDiscoveryModalOpen] = useState(false);
+    const [allCameras, setAllCameras] = useState<Camera[]>([]);
+
     const [discoveredCameras, setDiscoveredCameras] = useState<OnvifCamera[]>([]);
     const [testingNvrId, setTestingNvrId] = useState<string | null>(null);
     const [hasDiscoveryRun, setHasDiscoveryRun] = useState(false);
+    const [cameraSearchText, setCameraSearchText] = useState('');
+    const [treeExpandedKeys, setTreeExpandedKeys] = useState<React.Key[]>([]);
 
     const fetchNvrs = async () => {
         try {
             setLoadingNvrs(true);
             const nvrs = await nvrService.getAll();
             setNvrData(nvrs);
-            // Extract unique locations from NVRs for the user location dropdown
             const uniqueLocations = Array.from(new Set(nvrs.map((nvr: NVR) => nvr.location))).sort();
             setLocations(uniqueLocations);
         } catch (error) {
@@ -64,9 +67,19 @@ const Configuration: React.FC = () => {
         }
     };
 
+    const fetchCameras = async () => {
+        try {
+            const cams = await cameraService.getAll();
+            setAllCameras(cams);
+        } catch (error) {
+            console.error("Failed to load cameras", error);
+        }
+    };
+
     useEffect(() => {
         fetchNvrs();
         fetchUsers();
+        fetchCameras();
     }, []);
 
     const handleNvrSave = async (values: any) => {
@@ -212,6 +225,8 @@ const Configuration: React.FC = () => {
     const resetUserModal = () => {
         setIsUserModalOpen(false);
         setEditingUser(null);
+        setCameraSearchText('');
+        setTreeExpandedKeys([]);
         userForm.resetFields();
     };
 
@@ -629,54 +644,207 @@ const Configuration: React.FC = () => {
                 open={isUserModalOpen}
                 onCancel={resetUserModal}
                 footer={null}
+                width={720}
             >
                 <Form
                     form={userForm}
                     layout="vertical"
                     onFinish={handleUserSave}
                 >
-                    <Form.Item
-                        name="username"
-                        label="Username"
-                        rules={[{ required: true, message: 'Please enter username' }]}
-                    >
-                        <Input placeholder="e.g. atulrai" disabled={!!editingUser} />
-                    </Form.Item>
-                    <Form.Item
-                        name="password"
-                        label="Password"
-                        rules={[{ required: editingUser ? false : true, message: 'Please enter password' }]}
-                    >
-                        <Input.Password placeholder={editingUser ? "Leave blank to keep current" : ""} />
-                    </Form.Item>
-                    <Form.Item
-                        name="role"
-                        label="Role"
-                        initialValue={USER_ROLE.USER}
-                        rules={[{ required: true, message: 'Please select role' }]}
-                    >
-                        <Select>
-                            <Select.Option value={USER_ROLE.ADMIN}>Admin</Select.Option>
-                            <Select.Option value={USER_ROLE.USER}>User</Select.Option>
-                        </Select>
-                    </Form.Item>
+                    <Row gutter={16}>
+                        <Col span={8}>
+                            <Form.Item
+                                name="username"
+                                label="Username"
+                                rules={[{ required: true, message: 'Please enter username' }]}
+                            >
+                                <Input placeholder="e.g. atulrai" disabled={!!editingUser} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={8}>
+                            <Form.Item
+                                name="password"
+                                label="Password"
+                                rules={[{ required: editingUser ? false : true, message: 'Please enter password' }]}
+                            >
+                                <Input.Password placeholder={editingUser ? "Leave blank to keep current" : ""} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={8}>
+                            <Form.Item
+                                name="role"
+                                label="Role"
+                                initialValue={USER_ROLE.USER}
+                                rules={[{ required: true, message: 'Please select role' }]}
+                            >
+                                <Select>
+                                    <Select.Option value={USER_ROLE.ADMIN}>Admin</Select.Option>
+                                    <Select.Option value={USER_ROLE.USER}>User</Select.Option>
+                                </Select>
+                            </Form.Item>
+                        </Col>
+                    </Row>
 
-                    <Form.Item
-                        name="locations"
-                        label="Assigned Locations"
-                        help="Select locations this user is allowed to access. Leave empty if Admin (full access)."
-                    >
-                        <Select
-                            mode="multiple"
-                            placeholder="Select locations"
-                            showSearch
-                            optionFilterProp="children"
-                        >
-                            {locations.map(loc => (
-                                <Select.Option key={loc} value={loc}>{loc}</Select.Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
+                    <Row gutter={16}>
+                        <Col span={24}>
+                            <Form.Item
+                                name="locations"
+                                label="Assigned Locations"
+                                help="Select locations this user is allowed to access."
+                            >
+                                <Select
+                                    mode="multiple"
+                                    placeholder="Select locations"
+                                    showSearch
+                                    optionFilterProp="children"
+                                    style={{ width: '100%' }}
+                                >
+                                    {locations.map(loc => (
+                                        <Select.Option key={loc} value={loc}>{loc}</Select.Option>
+                                    ))}
+                                </Select>
+                            </Form.Item>
+                        </Col>
+                    </Row>
+
+                    <Row gutter={16}>
+                        <Col span={24}>
+                            <Form.Item
+                                name="assignedCameraIds"
+                                label="Assigned Cameras"
+                                help="Select specific cameras. If set, overrides location access for viewing."
+                            >
+                                {/* Custom Camera Selection UI */}
+                                <div className="camera-selection-container" style={{ border: '1px solid #d9d9d9', borderRadius: '6px', padding: '12px' }}>
+                                    <Input
+                                        placeholder="Search cameras..."
+                                        prefix={<SearchOutlined />}
+                                        style={{ marginBottom: '12px' }}
+                                        allowClear
+                                        onChange={(e) => setCameraSearchText(e.target.value.toLowerCase())}
+                                    />
+                                    <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                        <Form.Item
+                                            noStyle
+                                            shouldUpdate={(prev, curr) =>
+                                                prev.locations !== curr.locations ||
+                                                prev.assignedCameraIds !== curr.assignedCameraIds
+                                            }
+                                        >
+                                            {({ getFieldValue, setFieldValue }) => {
+                                                const selectedLocations = getFieldValue('locations') || [];
+                                                const currentSelection = getFieldValue('assignedCameraIds') || [];
+                                                const isDisabled = selectedLocations.length === 0;
+
+                                                // Build tree data structure filtered by selected locations
+                                                const locationsMap: Record<string, Record<string, any[]>> = {};
+
+                                                allCameras.forEach(cam => {
+                                                    // Only include cameras from selected locations
+                                                    if (selectedLocations.includes(cam.location)) {
+                                                        if (!locationsMap[cam.location]) {
+                                                            locationsMap[cam.location] = {};
+                                                        }
+                                                        if (!locationsMap[cam.location][cam.nvr]) {
+                                                            locationsMap[cam.location][cam.nvr] = [];
+                                                        }
+                                                        locationsMap[cam.location][cam.nvr].push(cam);
+                                                    }
+                                                });
+
+                                                const treeData = Object.entries(locationsMap).map(([locationName, nvrs]) => {
+                                                    const nvrChildren = Object.entries(nvrs).map(([nvrName, nvrCameras]) => {
+                                                        const filteredCameras = cameraSearchText
+                                                            ? nvrCameras.filter((cam: any) => cam.name.toLowerCase().includes(cameraSearchText))
+                                                            : nvrCameras;
+
+                                                        if (filteredCameras.length === 0) return null;
+
+                                                        return {
+                                                            title: <span style={{ fontWeight: 600 }}>{nvrName}</span>,
+                                                            key: `nvr-${locationName}-${nvrName}`,
+                                                            children: filteredCameras.map((cam: any) => ({
+                                                                title: cam.name,
+                                                                key: String(cam.id),
+                                                                isLeaf: true,
+                                                            }))
+                                                        };
+                                                    }).filter(Boolean);
+
+                                                    if (nvrChildren.length === 0) return null;
+
+                                                    return {
+                                                        title: <Tag color="blue">{locationName}</Tag>,
+                                                        key: `loc-${locationName}`,
+                                                        children: nvrChildren
+                                                    };
+                                                }).filter(Boolean);
+
+                                                const onCheck = (checkedKeysValue: any) => {
+                                                    const keys = Array.isArray(checkedKeysValue)
+                                                        ? checkedKeysValue
+                                                        : (checkedKeysValue?.checked || []);
+
+                                                    // Filter out location and nvr keys (they start with loc- or nvr-)
+                                                    const cameraIds = (keys as string[])
+                                                        .filter(key => !key.startsWith('loc-') && !key.startsWith('nvr-'));
+
+                                                    setFieldValue('assignedCameraIds', cameraIds);
+                                                };
+
+                                                const onExpand = (newExpandedKeys: React.Key[]) => {
+                                                    setTreeExpandedKeys(newExpandedKeys);
+                                                };
+
+                                                // Auto-expand when searching, otherwise use manual state
+                                                const expandedKeys = cameraSearchText
+                                                    ? treeData.flatMap((loc: any) => [
+                                                        loc.key,
+                                                        ...(loc.children || []).map((nvr: any) => nvr.key)
+                                                    ])
+                                                    : treeExpandedKeys;
+
+                                                return (
+                                                    <div style={{
+                                                        opacity: isDisabled ? 0.6 : 1,
+                                                        pointerEvents: isDisabled ? 'none' : 'auto',
+                                                        transition: 'all 0.3s'
+                                                    }}>
+                                                        {isDisabled ? (
+                                                            <div style={{
+                                                                textAlign: 'center',
+                                                                padding: '20px',
+                                                                color: '#999',
+                                                                background: '#fafafa',
+                                                                borderRadius: '4px'
+                                                            }}>
+                                                                Please select locations first to assign cameras.
+                                                            </div>
+                                                        ) : (
+                                                            <Spin spinning={loadingNvrs}>
+                                                                <Tree
+                                                                    checkable
+                                                                    onCheck={onCheck}
+                                                                    onExpand={onExpand}
+                                                                    expandedKeys={expandedKeys}
+                                                                    checkedKeys={currentSelection.map(String)}
+                                                                    treeData={treeData as any}
+                                                                    blockNode
+                                                                    autoExpandParent={!!cameraSearchText}
+                                                                    style={{ fontSize: '12px' }}
+                                                                />
+                                                            </Spin>
+                                                        )}
+                                                    </div>
+                                                );
+                                            }}
+                                        </Form.Item>
+                                    </div>
+                                </div>
+                            </Form.Item>
+                        </Col>
+                    </Row>
+
                     <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 0 }}>
                         <Space>
                             <Button onClick={resetUserModal}>Cancel</Button>

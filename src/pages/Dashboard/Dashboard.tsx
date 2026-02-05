@@ -216,15 +216,15 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                 >
                     {isMuted ? 'Unmute' : 'Mute'}
                 </Button>,
-                // <Button
-                //     key="talk"
-                //     type={isTalking ? 'primary' : 'default'}
-                //     danger={isTalking}
-                //     icon={<InteractionOutlined />}
-                //     onClick={() => setIsTalking(prev => !prev)}
-                // >
-                //     {isTalking ? 'Stop Speaking' : 'Speak to Camera'}
-                // </Button>,
+                <Button
+                    key="talk"
+                    type={isTalking ? 'primary' : 'default'}
+                    danger={isTalking}
+                    icon={<InteractionOutlined />}
+                    onClick={() => setIsTalking(prev => !prev)}
+                >
+                    {isTalking ? 'Stop Speaking' : 'Speak to Camera'}
+                </Button>,
                 <Button
                     key="screenshot"
                     icon={<CameraOutlined />}
@@ -358,7 +358,15 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
     const [currentPage, setCurrentPage] = useState(0);
     const [isAutoRotating, setIsAutoRotating] = useState(true);
     const [gridSize, setGridSize] = useState(12);
-    const ROTATION_MS = 45000;
+    const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+    const [rotationInterval, setRotationInterval] = useState(120000); // Default 2 min
+    const ROTATION_MS = rotationInterval;
+
+    useEffect(() => {
+        const handleResize = () => setWindowWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const totalPages = Math.ceil(cameras.length / gridSize);
 
@@ -400,6 +408,39 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
         return () => clearInterval(interval);
     }, [isAutoRotating, cameras.length, totalPages, isModalOpen]);
 
+    // Dynamic grid math
+    const getGridDimensions = (size: number, count: number) => {
+        // Mobile: 1 column
+        if (windowWidth <= 768) return { cols: 1, rows: size };
+
+        // Tablet: 2 or 3 columns
+        if (windowWidth <= 1024) {
+            if (size <= 4) return { cols: 2, rows: 2 };
+            if (size <= 9) return { cols: 3, rows: 3 };
+            return { cols: 3, rows: 4 };
+        }
+
+        // Desktop
+        if (size <= 4) return { cols: 2, rows: 2 };
+        if (size <= 6) return { cols: 3, rows: 2 };
+        if (size <= 8) return { cols: 4, rows: 2 };
+        if (size <= 12) return { cols: 4, rows: 3 };
+        if (size <= 16) return { cols: 4, rows: 4 };
+        if (size <= 20) return { cols: 5, rows: 4 };
+        if (size <= 25) return { cols: 5, rows: 5 };
+        return { cols: 8, rows: 4 }; // 32
+    };
+
+    const { cols, rows } = getGridDimensions(gridSize, currentCameras.length);
+
+    // Gap compensation (8px gap)
+    const gap = 8;
+    const isMobile = windowWidth <= 768;
+    const widthPct = isMobile ? '100%' : `calc((100% - ${(cols - 1) * gap}px) / ${cols})`;
+    const heightPct = isMobile ? 'auto' : `calc((100% - ${(rows - 1) * gap}px) / ${rows})`;
+
+    const useSubstream = gridSize > 6;
+
     if (!cameras || cameras.length === 0) {
         return (
             <div className="empty-grid-container">
@@ -428,10 +469,9 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                             setCurrentPage(0);
                         }}
                         options={[
-                            { value: 4, label: '4 View' },
                             { value: 6, label: '6 View' },
-                            { value: 8, label: '8 View' },
                             { value: 12, label: '12 View' },
+                            { value: 32, label: '32 View' },
                         ]}
                         onClick={e => e.stopPropagation()}
                     />
@@ -466,9 +506,24 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                                 size="small"
                                 className="pagination-auto-rotate"
                                 icon={isAutoRotating ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                                style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
                             >
                                 <span className="btn-text">{isAutoRotating ? 'Pause' : 'Auto-Rotate'}</span>
                             </Button>
+                            <Select
+                                value={rotationInterval}
+                                size="small"
+                                onChange={(val: number) => setRotationInterval(val)}
+                                options={[
+                                    { value: 60000, label: '1m' },
+                                    { value: 120000, label: '2m' },
+                                    { value: 180000, label: '3m' },
+                                    { value: 360000, label: '6m' },
+                                    { value: 540000, label: '9m' },
+                                ]}
+                                style={{ width: 65 }}
+                                className="timer-select"
+                            />
                         </>
                     )}
 
@@ -484,13 +539,18 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
             </div>
             <div className="video-grid">
                 {currentCameras.map((camera: Camera, idx: number) => (
-                    <LazyCameraCard
+                    <div
                         key={`${camera.id}-${idx}`}
-                        camera={camera}
-                        onClick={onCameraClick}
-                        onStreamReady={onStreamReady}
-                        index={idx}
-                    />
+                        style={{ width: widthPct, height: heightPct }}
+                    >
+                        <LazyCameraCard
+                            camera={camera}
+                            onClick={onCameraClick}
+                            onStreamReady={onStreamReady}
+                            index={idx}
+                            useSubstream={useSubstream}
+                        />
+                    </div>
                 ))}
             </div>
         </div>

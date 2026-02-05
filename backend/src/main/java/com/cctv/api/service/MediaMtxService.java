@@ -61,7 +61,7 @@ public class MediaMtxService {
         // Path configuration payload
         java.util.Map<String, Object> body = new java.util.HashMap<>();
         body.put("source", rtspUrl != null ? rtspUrl : "");
-        body.put("sourceProtocol", "tcp");
+        body.put("sourceProtocol", "automatic");
         body.put("sourceOnDemand", true);
 
         String username = apiUsername != null ? apiUsername : "";
@@ -101,7 +101,7 @@ public class MediaMtxService {
 
         java.util.Map<String, Object> body = new java.util.HashMap<>();
         body.put("source", rtspUrl != null ? rtspUrl : "");
-        body.put("sourceProtocol", "tcp");
+        body.put("sourceProtocol", "automatic");
         body.put("sourceOnDemand", true);
 
         String username = apiUsername != null ? apiUsername : "";
@@ -139,14 +139,15 @@ public class MediaMtxService {
     /**
      * Get stream information for a pre-configured path
      */
-    public StreamInfoDto getStreamInfo(String nvrId, int channelId, String rtspUrl, String hostName) {
+    public StreamInfoDto getStreamInfo(String nvrId, int channelId, boolean substream, String rtspUrl,
+            String hostName) {
         if (!mediamtxEnabled) {
             log.debug("MediaMTX is disabled, returning null stream info");
             return null;
         }
 
-        String streamId = getStreamId(nvrId, channelId);
-        String pathName = getPathName(nvrId, channelId);
+        String streamId = getStreamId(nvrId, channelId, substream);
+        String pathName = getPathName(nvrId, channelId, substream);
 
         String host = "localhost";
         // Resolve host for fallbacks or ICE candidates
@@ -226,15 +227,15 @@ public class MediaMtxService {
     /**
      * Get path name for MediaMTX
      */
-    private String getPathName(String nvrId, int channelId) {
-        return getStreamId(nvrId, channelId);
+    private String getPathName(String nvrId, int channelId, boolean substream) {
+        return getStreamId(nvrId, channelId, substream);
     }
 
     /**
      * Get stream ID
      */
-    private String getStreamId(String nvrId, int channelId) {
-        return nvrId + "_" + channelId;
+    private String getStreamId(String nvrId, int channelId, boolean substream) {
+        return nvrId + "_" + channelId + (substream ? "_sub" : "");
     }
 
     /**

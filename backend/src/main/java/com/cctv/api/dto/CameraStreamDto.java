@@ -11,4 +11,6 @@ public class CameraStreamDto {
     private String thumbnail;
     private String location;
     private String nvr;
+    private String nvrId;
+    private Integer channelId;
 }

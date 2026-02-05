@@ -26,6 +26,8 @@ export interface Camera {
     status: CAM_STATUS;
     thumbnail: string;
     streamUrl?: string;
+    nvrId: string;
+    channelId: number;
 }
 
 export interface NvrGroup {

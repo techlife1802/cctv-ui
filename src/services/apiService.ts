@@ -53,8 +53,10 @@ export const cameraService = {
 };
 
 export const streamService = {
-    getStreamInfo: async (nvrId: string, channelId: number): Promise<StreamInfo> => {
-        const response = await client.get(`${API_ENDPOINTS.STREAM}/${nvrId}/${channelId}/info`);
+    getStreamInfo: async (nvrId: string, channelId: number, substream: boolean = false): Promise<StreamInfo> => {
+        const response = await client.get(`${API_ENDPOINTS.STREAM}/${nvrId}/${channelId}/info`, {
+            params: { substream }
+        });
         return response.data;
     }
 };

@@ -40,32 +40,87 @@ public class OnvifService {
     public List<OnvifCameraDto> testAndDiscover(NVR nvr) {
 
         String ip = nvr.getIp();
-        String port = nvr.getOnvifPort() == null ? "80" : nvr.getOnvifPort();
+        // Use the main port for connectivity check, or onvif port if provided
+        String port = nvr.getPort();
+        String onvifPort = nvr.getOnvifPort() == null ? "80" : nvr.getOnvifPort();
         String user = nvr.getOnvifUsername() != null ? nvr.getOnvifUsername() : nvr.getUsername();
         String pass = nvr.getOnvifPassword() != null ? nvr.getOnvifPassword() : nvr.getPassword();
 
-        // 1️⃣ Try Hikvision ISAPI first
-        List<OnvifCameraDto> hikCameras = discoverHikvision(ip, port, user, pass);
-        if (!hikCameras.isEmpty()) {
-            log.info("Detected Hikvision via ISAPI. Found {} cameras.", hikCameras.size());
-            return hikCameras;
+        // 1. Connectivity Check
+        if (!isReachable(ip, Integer.parseInt(port))) {
+            if (!isReachable(ip, Integer.parseInt(onvifPort))) {
+                throw new RuntimeException("Device unreachable on Port " + port + " or " + onvifPort);
+            }
         }
 
-        List<OnvifCameraDto> xmeyeCameras = discoverXmeyeOnvif(ip, port, user, pass);
-        if (!xmeyeCameras.isEmpty()) {
-            log.info("Detected Adiva via ISAPI. Found {} cameras.", xmeyeCameras.size());
-            return xmeyeCameras;
+        List<OnvifCameraDto> cameras = new ArrayList<>();
+        String typeStr = nvr.getType();
+
+        // 2. Selective Discovery
+        if (typeStr != null) {
+            if (typeStr.equalsIgnoreCase("Hikvision")) {
+                cameras = discoverHikvision(ip, onvifPort, user, pass);
+            } else if (typeStr.equalsIgnoreCase("CP Plus")) {
+                cameras = discoverCpplus(ip, onvifPort, user, pass);
+            } else if (typeStr.equalsIgnoreCase("ADIVA") || typeStr.equalsIgnoreCase("XMEYE")) {
+                cameras = discoverXmeyeOnvif(ip, onvifPort, user, pass);
+            } else {
+                // Fallback to legacy try-all if type is unknown (though UI enforces selection)
+                log.warn("Unknown NVR type {}, trying auto-detection", typeStr);
+                cameras = discoverHikvision(ip, onvifPort, user, pass);
+                if (cameras.isEmpty())
+                    cameras = discoverXmeyeOnvif(ip, onvifPort, user, pass);
+                if (cameras.isEmpty())
+                    cameras = discoverCpplus(ip, onvifPort, user, pass);
+            }
         }
 
-        // 2️⃣ Try CP Plus CGI next (with Digest Auth support)
-        List<OnvifCameraDto> cpCameras = discoverCpplus(ip, port, user, pass);
-        if (!cpCameras.isEmpty()) {
-            log.info("Detected CP Plus via CGI. Found {} cameras.", cpCameras.size());
-            return cpCameras;
+        // 3. Fallback if ONVIF failed but device is reachable
+        if (cameras.isEmpty()) {
+            log.info("ONVIF discovery returned 0 cameras. Generating fallback channels.");
+            int channels = (nvr.getChannels() != null && nvr.getChannels() > 0) ? nvr.getChannels() : 32;
+            for (int i = 1; i <= channels; i++) {
+                cameras.add(OnvifCameraDto.builder()
+                        .name("Camera " + i)
+                        .profileName("Main Stream")
+                        .channel(i)
+                        .profileToken("Channel_" + i)
+                        .streamUri(generateFallbackStreamUri(nvr, i))
+                        .status("Online")
+                        .build());
+            }
         }
 
-        log.warn("Discovery failed. No supported vendor API found for IP: {}", ip);
-        return new ArrayList<>();
+        return cameras;
+    }
+
+    private boolean isReachable(String ip, int port) {
+        try (java.net.Socket socket = new java.net.Socket()) {
+            socket.connect(new java.net.InetSocketAddress(ip, port), 2000); // 2s timeout
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private String generateFallbackStreamUri(NVR nvr, int channel) {
+        // Best-effort guess based on type, similar to NvrService.generateStreamUrl
+        // We duplicate logic slightly because we don't want circular dependency or
+        // moving logic yet.
+        String type = nvr.getType();
+        String ip = nvr.getIp();
+        String port = (nvr.getPort() != null) ? nvr.getPort() : "554";
+        String user = nvr.getUsername(); // Use RTSP creds for stream URI, not ONVIF creds
+        String pass = nvr.getPassword();
+
+        if ("Hikvision".equalsIgnoreCase(type)) {
+            return String.format("rtsp://%s:%s@%s:%s/Streaming/Channels/%d01",
+                    encode(user), encode(pass), ip, port, channel);
+        } else if ("CP Plus".equalsIgnoreCase(type)) {
+            return String.format("rtsp://%s:%s@%s:%s/cam/realmonitor?channel=%d&subtype=0",
+                    encode(user), encode(pass), ip, port, channel);
+        }
+        return "rtsp://" + ip + "/stream" + channel; // Generic
     }
 
     // ========================= VENDOR DISCOVERY =========================

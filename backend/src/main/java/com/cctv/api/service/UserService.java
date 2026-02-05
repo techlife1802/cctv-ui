@@ -35,6 +35,7 @@ public class UserService {
         }
         user.setRole(userDetails.getRole());
         user.setLocations(userDetails.getLocations());
+        user.setAssignedCameraIds(userDetails.getAssignedCameraIds());
         return userRepository.save(user);
     }
 

@@ -5,20 +5,53 @@ import { logger } from '../../utils/logger';
 import { BASE_URL } from '../../api/client';
 import { streamService } from '../../services/apiService';
 import WebRtcPlayer from '../WebRtcPlayer';
-import { AudioOutlined, AudioMutedOutlined, InteractionOutlined, ReloadOutlined } from '@ant-design/icons';
+import { AudioOutlined, AudioMutedOutlined, ReloadOutlined } from '@ant-design/icons';
 
 interface CameraCardProps {
     camera: Camera;
     onClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean) => void;
     onStreamReady?: (camera: Camera, stream: MediaStream) => void;
     index?: number;
+    isModalCard?: boolean;
+    useSubstream?: boolean;
 }
+
+// Global request queue for stream info to prevent network congestion
+// Max 4 concurrent requests for stream info
+const streamInfoQueue: {
+    queue: (() => Promise<void>)[];
+    running: number;
+    maxConcurrent: number;
+} = {
+    queue: [],
+    running: 0,
+    maxConcurrent: 4
+};
+
+const processQueue = async () => {
+    if (streamInfoQueue.running >= streamInfoQueue.maxConcurrent || streamInfoQueue.queue.length === 0) {
+        return;
+    }
+
+    streamInfoQueue.running++;
+    const task = streamInfoQueue.queue.shift();
+    if (task) {
+        try {
+            await task();
+        } finally {
+            streamInfoQueue.running--;
+            processQueue();
+        }
+    }
+};
 
 const CameraCard: React.FC<CameraCardProps> = ({
     camera,
     onClick,
     onStreamReady,
-    index = 0
+    index = 0,
+    isModalCard = false,
+    useSubstream = false
 }) => {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const hlsRef = useRef<Hls | null>(null);
@@ -59,11 +92,6 @@ const CameraCard: React.FC<CameraCardProps> = ({
         onClick(camera, activeStreamRef.current || undefined);
     };
 
-    const handleTalkClick = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onClick(camera, activeStreamRef.current || undefined, true);
-    };
-
     const handleRefresh = (e: React.MouseEvent) => {
         e.stopPropagation();
         logger.info(`Refreshing stream for ${camera.name}`);
@@ -87,31 +115,58 @@ const CameraCard: React.FC<CameraCardProps> = ({
 
     // Fetch MediaMTX stream info if needed
     useEffect(() => {
-        if (!camera.streamUrl) {
-            setIsLoading(false);
-            return;
-        }
+        if (!camera.streamUrl) return;
 
-        if (camera.streamUrl.includes('/info')) {
-            const match = camera.streamUrl.match(/\/stream\/([^/]+)\/(\d+)\/info/);
-            if (match) {
-                const [, nvrId, channelIdStr] = match;
-                const channelId = parseInt(channelIdStr, 10);
-                streamService.getStreamInfo(nvrId, channelId)
-                    .then(info => {
+        let isMounted = true;
+
+        const fetchStreamInfo = async () => {
+            const getInfoTask = async () => {
+                if (!isMounted) return;
+                try {
+                    setIsLoading(true);
+                    setHasError(false);
+                    const info = await streamService.getStreamInfo(camera.nvrId, camera.channelId, useSubstream);
+                    if (isMounted) {
                         setStreamInfo(info);
                         if (info.webRtcUrl && window.RTCPeerConnection) {
                             setUseWebRtc(true);
                             setHasError(false); // Reset error if we have new info
                         }
-                    })
-                    .catch(err => {
-                        logger.error('Failed to fetch stream info', err);
-                        setStreamInfo(null);
-                    });
-            }
+                    }
+                } catch (err) {
+                    if (isMounted) {
+                        logger.error(`Error fetching stream info for camera ${camera.name}:`, err);
+                        setHasError(true);
+                        setIsLoading(false);
+                    }
+                }
+            };
+
+            // Add to static queue
+            streamInfoQueue.queue.push(getInfoTask);
+            processQueue();
+        };
+
+        // If it's a direct RTSP/HTTP URL, we don't need info proxy
+        if (!camera.streamUrl.includes('/info')) {
+            setIsLoading(false);
+            return;
         }
-    }, [camera.streamUrl, refreshKey]);
+
+        // Staggered loading: increasing delay based on index
+        // High-density views get more delay to smooth out traffic
+        const baseDelay = useSubstream ? 400 : 200;
+        const initDelay = index * baseDelay;
+
+        const timeout = setTimeout(fetchStreamInfo, initDelay);
+
+        return () => {
+            isMounted = false;
+            clearTimeout(timeout);
+            // Remove from queue if still there (optimization)
+            streamInfoQueue.queue = streamInfoQueue.queue.filter(t => t !== fetchStreamInfo);
+        };
+    }, [camera.streamUrl, index, refreshKey, useSubstream, camera.nvrId, camera.channelId, camera.name]);
 
     // Play stream (HLS or fallback)
     useEffect(() => {
@@ -151,6 +206,10 @@ const CameraCard: React.FC<CameraCardProps> = ({
         }
 
         if (!streamUrl) {
+            // Don't set error if we are still waiting for info fetch
+            if (camera.streamUrl.includes('/info') && !streamInfo) {
+                return;
+            }
             logger.error(`No valid stream URL for camera ${camera.name}`);
             setIsLoading(false);
             setHasError(true);
@@ -254,15 +313,20 @@ const CameraCard: React.FC<CameraCardProps> = ({
         };
     }, [camera.streamUrl, index, streamInfo, useWebRtc, refreshKey]);
 
-    // Handle explicit unmuting
+    // Auto-reconnect on error
     useEffect(() => {
-        if (videoRef.current) {
-            videoRef.current.muted = isMuted;
-            if (!isMuted) {
-                videoRef.current.play().catch(() => { });
-            }
+        if (hasError && !isLoading) {
+            // 2s base delay + random jitter between 0 and 3 seconds
+            const randomJitter = Math.floor(Math.random() * 3000);
+            const delay = 2000 + randomJitter;
+
+            const timer = setTimeout(() => {
+                logger.info(`Auto-reconnecting ${camera.name} after ${delay}ms...`);
+                handleRefresh({ stopPropagation: () => { } } as React.MouseEvent);
+            }, delay);
+            return () => clearTimeout(timer);
         }
-    }, [isMuted]);
+    }, [hasError, isLoading, camera.name]);
 
     const shouldUseWebRtc = streamInfo?.mediamtxEnabled && useWebRtc && streamInfo.webRtcUrl;
 
@@ -296,14 +360,15 @@ const CameraCard: React.FC<CameraCardProps> = ({
                         />
                     )}
 
-                    {isLoading && !hasError && (
+                    {(isLoading || (camera.streamUrl.includes('/info') && !streamInfo && !hasError)) && !hasError && (
                         <div style={{
                             position: 'absolute',
                             top: '50%',
                             left: '50%',
                             transform: 'translate(-50%, -50%)',
                             color: '#fff',
-                            fontSize: '14px'
+                            fontSize: '14px',
+                            zIndex: 5
                         }}>Loading...</div>
                     )}
 
@@ -321,7 +386,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                             fontSize: '12px',
                             zIndex: 10
                         }}>
-                            <div>Stream unavailable</div>
+                            <div>Stream Unavailable</div>
                             <button
                                 onClick={handleRefresh}
                                 className="refresh-button"
@@ -329,19 +394,20 @@ const CameraCard: React.FC<CameraCardProps> = ({
                                     background: '#1890ff',
                                     border: 'none',
                                     color: '#fff',
-                                    padding: '8px 16px',
-                                    borderRadius: '6px',
+                                    padding: '8px',
+                                    borderRadius: '50%',
                                     cursor: 'pointer',
-                                    fontSize: '13px',
+                                    width: '32px',
+                                    height: '32px',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '6px',
+                                    justifyContent: 'center',
                                     transition: 'all 0.2s ease',
                                     zIndex: 11
                                 }}
                                 onMouseEnter={(e) => {
                                     e.currentTarget.style.background = '#40a9ff';
-                                    e.currentTarget.style.transform = 'scale(1.05)';
+                                    e.currentTarget.style.transform = 'scale(1.1)';
                                 }}
                                 onMouseLeave={(e) => {
                                     e.currentTarget.style.background = '#1890ff';
@@ -349,7 +415,6 @@ const CameraCard: React.FC<CameraCardProps> = ({
                                 }}
                             >
                                 <ReloadOutlined spin={isLoading} />
-                                Reconnect
                             </button>
                         </div>
                     )}
@@ -359,32 +424,31 @@ const CameraCard: React.FC<CameraCardProps> = ({
             )}
 
             <div className="camera-overlay">
-                <div className={`status-badge ${streamStatus.toLowerCase()}`}>
-                    <div className="dot" />
-                    {streamStatus}
-                </div>
+                {streamStatus.toLowerCase() === 'online' ? (
+                    <div className="status-badge online" style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: '4px',
+                        backdropFilter: 'none'
+                    }}>
+                        <div className="dot" style={{ boxShadow: '0 0 8px #52c41a' }} />
+                    </div>
+                ) : (
+                    <div className={`status-badge ${streamStatus.toLowerCase()}`}>
+                        <div className="dot" />
+                        {streamStatus}
+                    </div>
+                )}
                 {/* <div className="camera-info">
                     <h4>{camera.name}</h4>
                     <p>{camera.location}</p>
                 </div> */}
-                <div className="audio-toggle" onClick={toggleAudio}>
+                {/* <div className="audio-toggle" onClick={toggleAudio}>
                     {isMuted ? (
                         <AudioMutedOutlined title="Unmute" />
                     ) : (
                         <AudioOutlined title="Mute" style={{ color: '#1890ff' }} />
                     )}
-                </div>
-                {/* <div className="talk-toggle" onClick={handleTalkClick} style={{
-                    cursor: 'pointer',
-                    padding: '4px',
-                    borderRadius: '4px',
-                    background: 'rgba(0, 0, 0, 0.4)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '16px'
-                }}>
-                    <InteractionOutlined title="Speak to Camera" />
                 </div> */}
             </div>
         </div>

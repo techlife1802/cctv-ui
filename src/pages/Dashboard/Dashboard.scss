@@ -339,40 +339,39 @@
                             }
                         }
                     }
+
+                    .timer-select {
+                        .ant-select-selector {
+                            border-left: none !important;
+                            border-top-left-radius: 0 !important;
+                            border-bottom-left-radius: 0 !important;
+                            background: var(--bg-primary) !important;
+                        }
+                    }
                 }
             }
 
             .video-grid {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                // grid-template-rows: repeat(2, 1fr); // Allow rows to flow naturally
-                gap: 16px;
+                display: flex;
+                flex-wrap: wrap;
+                align-content: flex-start;
+                gap: 8px;
                 flex: 1;
+                width: 100%;
+                height: 100%;
                 min-height: 0;
-                overflow-y: auto; // Enable scroll for overflow
+                overflow-x: hidden;
+                overflow-y: auto; // Allow scroll on overflow (especially for mobile)
 
-                @media (max-width: 1400px) {
-                    grid-template-columns: repeat(2, 1fr);
-                    grid-template-rows: repeat(3, 1fr);
+                @media (min-width: 769px) {
+                    overflow-y: hidden; // Keep "no scroll" constraint on desktop
                 }
 
-                // Landscape mode on mobile devices (e.g. iPhone horizontal)
-                @media (max-width: 900px) and (orientation: landscape) {
-                    grid-template-columns: repeat(2, 1fr);
-                    grid-template-rows: auto;
-                    overflow-y: auto;
+                &>div {
+                    flex-shrink: 0;
                 }
 
-                @media (max-width: 900px) and (orientation: portrait) {
-                    grid-template-columns: 1fr;
-                    grid-template-rows: auto;
-                    overflow-y: auto;
-                    gap: 12px;
-                }
-
-                @media (max-width: 576px) {
-                    gap: 10px;
-                }
+                // Dynamic sizing is handled by inline styles in React based on grid size
             }
         }
     }

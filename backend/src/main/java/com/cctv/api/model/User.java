@@ -24,4 +24,9 @@ public class User {
     @CollectionTable(name = "user_locations", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "location")
     private java.util.Set<String> locations = new java.util.HashSet<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_assigned_cameras", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "camera_id")
+    private java.util.Set<String> assignedCameraIds = new java.util.HashSet<>();
 }
