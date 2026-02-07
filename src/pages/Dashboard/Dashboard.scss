@@ -5,6 +5,12 @@
     background: var(--bg-primary);
     position: relative;
 
+    @media (max-width: 1024px) {
+        height: auto;
+        min-height: calc(100vh - 64px);
+        overflow: visible; // Allow native scroll on mobile/tablet
+    }
+
     &.fullscreen-mode {
         position: fixed;
         inset: 0;
@@ -182,6 +188,13 @@
         flex: 1;
         overflow: hidden;
         display: flex;
+
+        @media (max-width: 1024px) {
+            overflow-y: auto; // Enable scroll on mobile
+            overflow-x: hidden;
+            height: auto;
+        }
+
         flex-direction: column;
         padding: 1.5rem;
         padding-top: 4rem; // Make room for menu/collapse button on all screens
@@ -190,6 +203,11 @@
 
         @media (max-width: 768px) {
             padding: 0.75rem;
+            padding-top: 3.5rem;
+        }
+
+        @media (max-width: 1024px) {
+            padding: 1rem;
             padding-top: 3.5rem;
         }
 
@@ -252,8 +270,8 @@
                 gap: 1rem;
 
                 @media (max-width: 768px) {
-                    flex-direction: row; // Keep header items in row on mobile
-                    align-items: center;
+                    flex-direction: column; // Stack vertically on mobile
+                    align-items: stretch;
                     margin-bottom: 1rem;
                     gap: 0.75rem;
                 }
@@ -285,11 +303,12 @@
                     border: 1px solid var(--border-color);
                     flex-wrap: wrap;
 
-                    @media (max-width: 768px) {
-                        width: auto;
+                    @media (max-width: 1024px) {
+                        width: 100%; // Take full width on mobile/tablet
+                        justify-content: center; // Center items
                         gap: 0.5rem;
-                        padding: 4px 8px;
-                        flex-direction: row; // Horizontal on mobile too
+                        padding: 8px;
+                        margin-top: 0;
                         background: transparent;
                         border: none;
                     }
@@ -298,14 +317,16 @@
                         display: flex;
                         gap: 8px;
 
-                        @media (max-width: 768px) {
-                            width: auto;
+                        @media (max-width: 1024px) {
+                            flex: 1; // Allow buttons to take available space
+                            justify-content: center; // Center buttons
 
                             button {
                                 padding: 4px 8px;
                                 display: flex;
                                 align-items: center;
                                 justify-content: center;
+                                flex: 1; // Equal width buttons
 
                                 .anticon {
                                     margin: 0 !important;
@@ -352,23 +373,33 @@
             }
 
             .video-grid {
-                display: flex;
-                flex-wrap: wrap;
-                align-content: flex-start;
+                display: grid; // Use CSS Grid
                 gap: 8px;
                 flex: 1;
                 width: 100%;
                 height: 100%;
                 min-height: 0;
                 overflow-x: hidden;
-                overflow-y: auto; // Allow scroll on overflow (especially for mobile)
+                overflow-y: auto; // Allow scroll on overflow
 
-                @media (min-width: 769px) {
+                @media (min-width: 1025px) {
                     overflow-y: hidden; // Keep "no scroll" constraint on desktop
                 }
 
+                @media (max-width: 1024px) {
+                    height: auto;
+                    flex: none; // Don't flex on mobile
+                    overflow: visible; // Let page scroll handle it
+                }
+
                 &>div {
-                    flex-shrink: 0;
+                    width: 100%; // Occupy full grid cell
+                    height: 100%; // Occupy full grid cell
+                    min-height: 0; // Prevent overflow
+
+                    @media (max-width: 1024px) {
+                        height: auto; // Let aspect ratio determine height on mobile
+                    }
                 }
 
                 // Dynamic sizing is handled by inline styles in React based on grid size
@@ -390,7 +421,7 @@
 // Camera Card and other existing styles preserved and adapted
 .camera-card {
     width: 100%;
-    aspect-ratio: 16 / 9;
+    height: 100%; // Fill grid cell
     background: #000;
     border-radius: 12px;
     overflow: hidden;
@@ -401,6 +432,7 @@
 
     @media (max-width: 768px) {
         border-radius: 8px;
+        aspect-ratio: 16 / 9; // Fix height on mobile
     }
 
     &:hover {

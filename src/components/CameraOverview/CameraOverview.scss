@@ -4,6 +4,10 @@
     overflow-y: auto;
     background-color: var(--bg-primary);
 
+    @media (max-width: 768px) {
+        padding: 0.75rem;
+    }
+
     .overview-header {
         margin-bottom: 24px;
         display: flex;

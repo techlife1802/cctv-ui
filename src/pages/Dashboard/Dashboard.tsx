@@ -433,11 +433,9 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
 
     const { cols, rows } = getGridDimensions(gridSize, currentCameras.length);
 
-    // Gap compensation (8px gap)
-    const gap = 8;
     const isMobile = windowWidth <= 768;
-    const widthPct = isMobile ? '100%' : `calc((100% - ${(cols - 1) * gap}px) / ${cols})`;
-    const heightPct = isMobile ? 'auto' : `calc((100% - ${(rows - 1) * gap}px) / ${rows})`;
+    const gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    const gridTemplateRows = isMobile ? 'auto' : `repeat(${rows}, 1fr)`;
 
     const useSubstream = gridSize > 6;
 
@@ -537,11 +535,16 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                     </Button>
                 </div>
             </div>
-            <div className="video-grid">
+            <div
+                className="video-grid"
+                style={{
+                    gridTemplateColumns,
+                    gridTemplateRows
+                }}
+            >
                 {currentCameras.map((camera: Camera, idx: number) => (
                     <div
                         key={`${camera.id}-${idx}`}
-                        style={{ width: widthPct, height: heightPct }}
                     >
                         <LazyCameraCard
                             camera={camera}

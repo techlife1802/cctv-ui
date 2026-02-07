@@ -70,7 +70,7 @@ const LazyCameraCard: React.FC<LazyCameraCardProps> = ({
                         justifyContent: 'center',
                         color: '#666',
                         fontSize: '14px',
-                        minHeight: '200px'
+                        height: '100%'
                     }}
                 >
                     <div style={{ textAlign: 'center' }}>
