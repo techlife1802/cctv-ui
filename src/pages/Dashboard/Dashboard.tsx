@@ -41,21 +41,19 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
     const [streamStatus, setStreamStatus] = useState<string>('loading');
     const [isMuted, setIsMuted] = useState(true);
     const [isRecording, setIsRecording] = useState(false);
-    const [isTalking, setIsTalking] = useState(false);
-    const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+
     const recordingSessionRef = useRef<RecordingSession | null>(null);
     const modalVideoRef = useRef<HTMLVideoElement>(null);
+    const hlsInstanceRef = useRef<Hls | null>(null);
 
     const handleStatusChange = useCallback((status: 'loading' | 'online' | 'retrying' | 'failed') => {
         setStreamStatus(status);
-        if (status === 'online') {
-            setIsVideoPlaying(true);
-        }
     }, []);
 
     const handleWebRtcError = useCallback((err: Error) => {
         logger.warn("Modal WebRTC Error:", err);
         if (hlsUrl) {
+            logger.info("Falling back to HLS stream");
             setUseHlsFallback(true);
         } else if (retryCount < 1) {
             setTimeout(() => setRetryCount((prev: number) => prev + 1), 1000);
@@ -74,17 +72,17 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             setHasError(false);
             setIceServers([]);
             setStreamStatus('loading');
-            setIsVideoPlaying(false);
             if (modalVideoRef.current) modalVideoRef.current.srcObject = null;
+            if (hlsInstanceRef.current) {
+                hlsInstanceRef.current.destroy();
+                hlsInstanceRef.current = null;
+            }
             if (recordingSessionRef.current) {
                 recordingSessionRef.current.stop();
                 recordingSessionRef.current = null;
             }
             setIsRecording(false);
             setIsMuted(true);
-            setIsTalking(false);
-        } else {
-            setIsTalking(!!startTalking);
         }
     }, [open, startTalking]);
 
@@ -93,7 +91,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         if (open && initialStream && modalVideoRef.current) {
             modalVideoRef.current.srcObject = initialStream;
             setStreamStatus('online');
-            modalVideoRef.current.play().then(() => setIsVideoPlaying(true)).catch((err: Error) => logger.warn('Modal autoplay failed', err));
+            modalVideoRef.current.play().catch((err: Error) => logger.warn('Modal autoplay failed', err));
         }
     }, [open, initialStream]);
 
@@ -113,9 +111,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             if (!open || !camera?.streamUrl || initialStream) return;
 
             // Check if we have cached info first
-            if (cachedStreamInfo && !retryCount) { // If retrying, we might want to refetch, or use cache? Let's refetch if retrying to be safe, but for initial load use cache.
-                // Actually, if we are retrying, we probably want to re-fetch freshly. 
-                // But for the FIRST load (retryCount === 0), use cache.
+            if (cachedStreamInfo && !retryCount) {
                 if (cachedStreamInfo.webRtcUrl) setWebRtcUrl(cachedStreamInfo.webRtcUrl);
                 if (cachedStreamInfo.hlsUrl) setHlsUrl(cachedStreamInfo.hlsUrl);
                 if (cachedStreamInfo.iceServers) setIceServers(cachedStreamInfo.iceServers);
@@ -192,7 +188,8 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         }
     };
 
-    const isLoading = !hasError && !isVideoPlaying && (streamStatus === 'loading' || streamStatus === 'retrying');
+
+    const isLoading = !hasError && (streamStatus === 'loading' || streamStatus === 'retrying');
 
     return (
         <Modal
@@ -216,15 +213,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                 >
                     {isMuted ? 'Unmute' : 'Mute'}
                 </Button>,
-                <Button
-                    key="talk"
-                    type={isTalking ? 'primary' : 'default'}
-                    danger={isTalking}
-                    icon={<InteractionOutlined />}
-                    onClick={() => setIsTalking(prev => !prev)}
-                >
-                    {isTalking ? 'Stop Speaking' : 'Speak to Camera'}
-                </Button>,
+
                 <Button
                     key="screenshot"
                     icon={<CameraOutlined />}
@@ -241,46 +230,38 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             className="fullscreen-video-modal"
             closeIcon={<CloseOutlined style={{ fontSize: '20px', color: '#fff' }} />}
         >
-            <div className="modal-video-container" style={{ position: 'relative', width: '100%', height: '70vh', background: '#000' }}>
+            <div className="modal-video-container" style={{ position: 'relative', width: '100%', height: '85vh', background: '#000' }}>
                 {isRecording && (
                     <div className="recording-indicator">
                         <div className="recording-dot" />
                         REC
                     </div>
                 )}
-                {isTalking && (
-                    <div className="talking-indicator">
-                        <div className="talking-dot" />
-                        SPEAKING
-                    </div>
-                )}
-                {/* Video Elements */}
-                {open && initialStream && !isTalking ? (
+
+
+                {/* Video Elements - Simplified rendering logic */}
+                {open && initialStream ? (
                     <video
                         ref={modalVideoRef}
                         autoPlay
                         muted={isMuted}
                         playsInline
-                        onPlaying={() => setIsVideoPlaying(true)}
-                        style={{ width: '100%', height: '100%', objectFit: 'contain', display: isVideoPlaying ? 'block' : 'none' }}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                 ) : camera && webRtcUrl && !hasError && !useHlsFallback ? (
-                    <div style={{ display: isVideoPlaying ? 'block' : 'none', width: '100%', height: '100%' }}>
-                        <WebRtcPlayer
-                            streamUrl={webRtcUrl}
-                            iceServers={iceServers}
-                            autoPlay
-                            muted={isMuted}
-                            isTalking={isTalking}
-                            onStatusChange={handleStatusChange}
-                            onError={handleWebRtcError}
-                            videoRef={modalVideoRef}
-                        />
-                    </div>
+                    <WebRtcPlayer
+                        streamUrl={webRtcUrl}
+                        iceServers={iceServers}
+                        autoPlay
+                        muted={isMuted}
+                        onStatusChange={handleStatusChange}
+                        onError={handleWebRtcError}
+                        videoRef={modalVideoRef}
+                    />
                 ) : useHlsFallback && hlsUrl ? (
                     <video
                         ref={(el: HTMLVideoElement | null) => {
-                            if (el && hlsUrl) {
+                            if (el && hlsUrl && !hlsInstanceRef.current) {
                                 if (Hls.isSupported()) {
                                     const hls = new Hls({
                                         liveSyncDuration: 2,
@@ -290,6 +271,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                                         levelLoadingMaxRetry: 10,
                                         fragLoadingMaxRetry: 10
                                     });
+                                    hlsInstanceRef.current = hls;
                                     hls.loadSource(hlsUrl);
                                     hls.attachMedia(el);
                                     hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -312,8 +294,8 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                         autoPlay
                         controls
                         muted={isMuted}
-                        onPlaying={() => setIsVideoPlaying(true)}
-                        style={{ width: '100%', height: '100%', objectFit: 'contain', display: isVideoPlaying ? 'block' : 'none' }}
+                        playsInline
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                 ) : null}
 
@@ -325,11 +307,11 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                         </Text>
                         {retryCount < 1 && <Spin />}
                         {(retryCount >= 1 || hasError) && (
-                            <button onClick={() => { setRetryCount(0); setHasError(false); }} style={{ background: '#1890ff', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}>Retry Connection</button>
+                            <button onClick={() => { setRetryCount(0); setHasError(false); setUseHlsFallback(false); }} style={{ background: '#1890ff', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}>Retry Connection</button>
                         )}
                     </div>
                 ) : isLoading && (
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', position: 'absolute', top: 0, left: 0, width: '100%', zIndex: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', position: 'absolute', top: 0, left: 0, width: '100%', zIndex: 10, background: 'rgba(0,0,0,0.5)' }}>
                         <Spin size="large" tip="Loading Stream..." />
                     </div>
                 )}

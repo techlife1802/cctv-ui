@@ -353,7 +353,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                             style={{
                                 width: '100%',
                                 height: '100%',
-                                objectFit: 'contain',
+                                objectFit: 'cover',
                                 background: '#000',
                                 display: hasError ? 'none' : 'block'
                             }}

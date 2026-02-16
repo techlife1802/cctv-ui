@@ -7,12 +7,14 @@ import {
     LogoutOutlined,
     BulbOutlined,
     BulbFilled,
-    MenuOutlined
+    MenuOutlined,
+    KeyOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../themeContext';
 import './MainLayout.scss';
 import logo from "../images/campus_watch_owl_logo.png";
+import ChangePasswordModal from '../components/ChangePasswordModal/ChangePasswordModal';
 
 const { Header, Content } = Layout;
 
@@ -21,6 +23,7 @@ const MainLayout: React.FC = () => {
     const location = useLocation();
     const { theme: currentTheme, toggleTheme } = useTheme();
     const [drawerVisible, setDrawerVisible] = useState(false);
+    const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
 
     const userJson = localStorage.getItem('user');
     const user = userJson ? JSON.parse(userJson) : null;
@@ -52,6 +55,12 @@ const MainLayout: React.FC = () => {
 
     const userMenu = {
         items: [
+            {
+                key: 'change-password',
+                label: 'Change Password',
+                icon: <KeyOutlined />,
+                onClick: () => setChangePasswordModalVisible(true),
+            },
             {
                 key: 'logout',
                 label: 'Logout',
@@ -127,6 +136,12 @@ const MainLayout: React.FC = () => {
             <Content className="site-layout-content-wrapper">
                 <Outlet />
             </Content>
+
+            <ChangePasswordModal
+                open={changePasswordModalVisible}
+                onCancel={() => setChangePasswordModalVisible(false)}
+                onSuccess={() => setChangePasswordModalVisible(false)}
+            />
         </Layout>
     );
 };

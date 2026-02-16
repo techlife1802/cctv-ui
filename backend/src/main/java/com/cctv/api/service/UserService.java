@@ -43,4 +43,22 @@ public class UserService {
         log.debug("Deleting user: {}", id);
         userRepository.deleteById(java.util.Objects.requireNonNull(id));
     }
+
+    public boolean changePassword(String username, String currentPassword, String newPassword) {
+        log.debug("Changing password for user: {}", username);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Verify current password
+        if (!user.getPassword().equals(currentPassword)) {
+            log.warn("Current password incorrect for user: {}", username);
+            return false;
+        }
+
+        // Update to new password
+        user.setPassword(newPassword);
+        userRepository.save(user);
+        log.info("Password changed successfully for user: {}", username);
+        return true;
+    }
 }
