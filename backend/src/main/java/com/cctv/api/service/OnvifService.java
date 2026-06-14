@@ -62,14 +62,14 @@ public class OnvifService {
                 cameras = discoverHikvision(ip, onvifPort, user, pass);
             } else if (typeStr.equalsIgnoreCase("CP Plus")) {
                 cameras = discoverCpplus(ip, onvifPort, user, pass);
-            } else if (typeStr.equalsIgnoreCase("ADIVA") || typeStr.equalsIgnoreCase("XMEYE")) {
-                cameras = discoverXmeyeOnvif(ip, onvifPort, user, pass);
+            } else if (typeStr.equalsIgnoreCase("ADIVA") || typeStr.equalsIgnoreCase("SECURUS") || typeStr.equalsIgnoreCase("XMEYE")) {
+                cameras = discoverXmeyeOnvif(ip, onvifPort, user, pass, port);
             } else {
                 // Fallback to legacy try-all if type is unknown (though UI enforces selection)
                 log.warn("Unknown NVR type {}, trying auto-detection", typeStr);
                 cameras = discoverHikvision(ip, onvifPort, user, pass);
                 if (cameras.isEmpty())
-                    cameras = discoverXmeyeOnvif(ip, onvifPort, user, pass);
+                    cameras = discoverXmeyeOnvif(ip, onvifPort, user, pass, port);
                 if (cameras.isEmpty())
                     cameras = discoverCpplus(ip, onvifPort, user, pass);
             }
@@ -119,6 +119,9 @@ public class OnvifService {
         } else if ("CP Plus".equalsIgnoreCase(type)) {
             return String.format("rtsp://%s:%s@%s:%s/cam/realmonitor?channel=%d&subtype=0",
                     encode(user), encode(pass), ip, port, channel);
+        } else if ("ADIVA".equalsIgnoreCase(type) || "SECURUS".equalsIgnoreCase(type) || "XMEYE".equalsIgnoreCase(type)) {
+            return String.format("rtsp://%s:%s@%s:%s/user=%s_password=%s_channel=%d_stream=0.sdp?real_stream.",
+                    encode(user), encode(pass), ip, port, encode(user), encode(pass), channel);
         }
         return "rtsp://" + ip + "/stream" + channel; // Generic
     }
@@ -126,7 +129,7 @@ public class OnvifService {
     // ========================= VENDOR DISCOVERY =========================
 
     private List<OnvifCameraDto> discoverXmeyeOnvif(
-            String ip, String port, String user, String pass) {
+            String ip, String port, String user, String pass, String rtspPort) {
 
         List<OnvifCameraDto> list = new ArrayList<>();
 
@@ -181,10 +184,11 @@ public class OnvifService {
                         profiles.item(i));
 
                 int channel = i + 1;
+                String rPort = (rtspPort != null && !rtspPort.isEmpty()) ? rtspPort : "554";
 
                 String rtsp = String.format(
-                        "rtsp://%s:%s@%s:554/Streaming/Channels/%d01",
-                        encode(user), encode(pass), ip, channel);
+                        "rtsp://%s:%s@%s:%s/user=%s_password=%s_channel=%d_stream=0.sdp?real_stream.",
+                        encode(user), encode(pass), ip, rPort, encode(user), encode(pass), channel);
 
                 if (name == null || name.isEmpty()) {
                     name = "Camera " + channel;
@@ -202,6 +206,9 @@ public class OnvifService {
 
         } catch (Exception e) {
             log.warn("Xmeye ONVIF discovery failed: {}", e.getMessage());
+            if (e.getMessage() != null && (e.getMessage().contains("401") || e.getMessage().contains("Unauthorized"))) {
+                throw new RuntimeException("Authentication failed: Invalid credentials for NVR");
+            }
         }
 
         return list;
@@ -337,6 +344,9 @@ public class OnvifService {
                     .block();
         } catch (Exception e) {
             log.warn("GET failed for {}: {}", url, e.getMessage());
+            if (e.getMessage() != null && (e.getMessage().contains("401") || e.getMessage().contains("Unauthorized"))) {
+                throw new RuntimeException("Authentication failed: Invalid credentials for NVR");
+            }
             return null;
         }
     }
@@ -371,6 +381,8 @@ public class OnvifService {
 
                 if (statusCode >= 200 && statusCode < 300) {
                     return result;
+                } else if (statusCode == 401) {
+                    throw new RuntimeException("Authentication failed: Invalid credentials for NVR");
                 } else {
                     log.warn("Digest GET failed with status: {}, Body: {}", statusCode, result);
                     return null;
@@ -378,7 +390,9 @@ public class OnvifService {
             }
         } catch (Exception e) {
             log.warn("Digest GET failed for {}: {}", url, e.getMessage());
-            // e.printStackTrace(); // Optional: kept log succinct
+            if (e.getMessage() != null && (e.getMessage().contains("401") || e.getMessage().contains("Unauthorized"))) {
+                throw new RuntimeException("Authentication failed: Invalid credentials for NVR");
+            }
             return null;
         }
     }

@@ -20,6 +20,7 @@ export enum NVR_TYPE {
     HIKVISION = 'Hikvision',
     CP_PLUS = 'CP Plus',
     ADIVA = 'ADIVA',
+    SECURUS = 'Securus',
 }
 
 export enum USER_ROLE {
