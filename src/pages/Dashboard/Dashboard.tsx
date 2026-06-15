@@ -86,6 +86,16 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         }
     }, [open, startTalking]);
 
+    // Loading timeout to show Retry button if stream is stuck loading
+    useEffect(() => {
+        if (open && (streamStatus === 'loading' || streamStatus === 'retrying')) {
+            const timer = setTimeout(() => {
+                setHasError(true);
+            }, 10000); // 10 seconds timeout
+            return () => clearTimeout(timer);
+        }
+    }, [open, streamStatus]);
+
     // Attach initial stream
     useEffect(() => {
         if (open && initialStream && modalVideoRef.current) {
@@ -196,6 +206,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             title={<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><EyeOutlined /> {camera?.name}</div>}
             open={open}
             onCancel={onClose}
+            zIndex={10009}
             footer={[
                 // <Button
                 //     key="record"
@@ -453,6 +464,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                             { value: 12, label: '12 View' },
                             { value: 32, label: '32 View' },
                         ]}
+                        dropdownStyle={{ zIndex: 10010 }}
                         onClick={e => e.stopPropagation()}
                     />
                 </div>
@@ -501,6 +513,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                                     { value: 360000, label: '6m' },
                                     { value: 540000, label: '9m' },
                                 ]}
+                                dropdownStyle={{ zIndex: 10010 }}
                                 style={{ width: 65 }}
                                 className="timer-select"
                             />

@@ -38,7 +38,7 @@ rtmpAddress: :1935
 
 hls: yes
 hlsAddress: :8888
-hlsAllowOrigins: ["*"]
+hlsAllowOrigin: "*"
 hlsVariant: lowLatency
 hlsSegmentDuration: 2s
 hlsPartDuration: 400ms

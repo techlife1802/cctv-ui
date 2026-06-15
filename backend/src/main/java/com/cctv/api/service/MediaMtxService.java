@@ -61,7 +61,7 @@ public class MediaMtxService {
         // Path configuration payload
         java.util.Map<String, Object> body = new java.util.HashMap<>();
         body.put("source", rtspUrl != null ? rtspUrl : "");
-        body.put("sourceProtocol", "automatic");
+        body.put("sourceProtocol", "tcp");
         body.put("sourceOnDemand", true);
 
         String username = apiUsername != null ? apiUsername : "";
@@ -101,7 +101,7 @@ public class MediaMtxService {
 
         java.util.Map<String, Object> body = new java.util.HashMap<>();
         body.put("source", rtspUrl != null ? rtspUrl : "");
-        body.put("sourceProtocol", "automatic");
+        body.put("sourceProtocol", "tcp");
         body.put("sourceOnDemand", true);
 
         String username = apiUsername != null ? apiUsername : "";

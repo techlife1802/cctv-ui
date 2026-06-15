@@ -22,6 +22,7 @@ public class NvrService {
     private final NvrRepository nvrRepository;
     private final com.cctv.api.repository.CameraRepository cameraRepository;
     private final MediaMtxService mediaMtxService;
+    private final OnvifService onvifService;
 
     @Cacheable(value = "nvrs", key = "'all' + #allowedLocations")
     public List<NVR> getAllNvrs(java.util.Set<String> allowedLocations) {
@@ -51,6 +52,7 @@ public class NvrService {
     @CacheEvict(value = { "nvrs", "nvrsByLocation", "streamLists" }, allEntries = true)
     public NVR createNvr(NVR nvr) {
         log.debug("Saving new NVR: {}", nvr.getName());
+        onvifService.testAndDiscover(nvr);
         NVR savedNvr = nvrRepository.save(nvr);
 
         if (nvr.getCameras() != null && !nvr.getCameras().isEmpty()) {
@@ -65,6 +67,7 @@ public class NvrService {
     @CacheEvict(value = { "nvrs", "nvrsByLocation", "streamLists" }, allEntries = true)
     public NVR updateNvr(String id, NVR nvrDetails) {
         log.debug("Updating NVR: {}", id);
+        onvifService.testAndDiscover(nvrDetails);
         NVR nvr = nvrRepository.findById(java.util.Objects.requireNonNull(id)).orElseThrow(() -> {
             log.error("NVR not found with id: {}", id);
             return new RuntimeException("NVR not found");
@@ -328,6 +331,11 @@ public class NvrService {
                     int streamMode = substream ? 1 : 0;
                     url = String.format("rtsp://%s:%s@%s:%s/cam/realmonitor?channel=%d&subtype=%d",
                             username, password, nvr.getIp(), port, channel, streamMode);
+                } else if (type == NvrType.ADIVA || type == NvrType.SECURUS) {
+                    // XMEYE / Adiva / Securus
+                    int streamMode = substream ? 1 : 0;
+                    url = String.format("rtsp://%s:%s@%s:%s/user=%s_password=%s_channel=%d_stream=%d.sdp?real_stream.",
+                            username, password, nvr.getIp(), port, username, password, channel, streamMode);
                 }
             }
         } catch (Exception e) {

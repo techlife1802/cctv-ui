@@ -196,12 +196,8 @@ const Configuration: React.FC = () => {
             setIsTesting(true);
 
             // Create a temporary NVR object for testing
-            // If type is ADIVA, use XMEYE for the backend connection test
-            const typeToSend = values.type === NVR_TYPE.ADIVA ? 'XMEYE' : values.type;
-
             const tempNvr = {
                 ...values,
-                type: typeToSend as any,
                 id: editingNvr?.id || 'temp'
             };
 
@@ -257,6 +253,8 @@ const Configuration: React.FC = () => {
             filters: [
                 { text: 'Hikvision', value: 'Hikvision' },
                 { text: 'CP Plus', value: 'CP Plus' },
+                { text: 'ADIVA', value: 'ADIVA' },
+                { text: 'Securus', value: 'Securus' },
             ],
             onFilter: (value: any, record: NVR) => record.type.indexOf(value as string) === 0,
         },
@@ -513,6 +511,7 @@ const Configuration: React.FC = () => {
                                     <Select.Option value={NVR_TYPE.HIKVISION}>Hikvision</Select.Option>
                                     <Select.Option value={NVR_TYPE.CP_PLUS}>CP Plus</Select.Option>
                                     <Select.Option value={NVR_TYPE.ADIVA}>ADIVA</Select.Option>
+                                    <Select.Option value={NVR_TYPE.SECURUS}>Securus</Select.Option>
                                 </Select>
                             </Form.Item>
                         </Col>
