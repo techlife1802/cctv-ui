@@ -56,4 +56,4 @@ CREATE TABLE IF NOT EXISTS user_assigned_cameras (
     CONSTRAINT fk_user_assigned_cameras_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-INSERT INTO users (id, username, password, role) VALUES ('1', 'admin', 'admin', 'ADMIN') ON CONFLICT (username) DO UPDATE SET role = EXCLUDED.role, password = EXCLUDED.password;
+INSERT INTO users (id, username, password, role) VALUES ('1', 'admin', 'admin', 'ADMIN') ON CONFLICT (username) DO UPDATE SET role = EXCLUDED.role;
