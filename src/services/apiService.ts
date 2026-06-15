@@ -1,5 +1,5 @@
 import client from '../api/client';
-import { Camera, NVR, LoginRequest, LoginResponse, NvrGroup, User, StreamInfo, OnvifCamera } from '../types';
+import { Camera, NVR, LoginRequest, LoginResponse, NvrGroup, User, StreamInfo, OnvifCamera, PlaybackSegment } from '../types';
 import { API_ENDPOINTS, APP_CONFIG } from '../constants';
 
 export const authService = {
@@ -58,6 +58,51 @@ export const streamService = {
             params: { substream }
         });
         return response.data;
+    }
+};
+
+export const recordingService = {
+    /**
+     * Fetch available recording segments for a camera within a time range.
+     * Returns an empty array if the backend doesn't support this endpoint.
+     */
+    getRecordings: async (
+        nvrId: string,
+        channelId: number,
+        startTime: string,
+        endTime: string
+    ): Promise<PlaybackSegment[]> => {
+        try {
+            const response = await client.get(
+                `${API_ENDPOINTS.STREAM}/${nvrId}/${channelId}/recordings`,
+                { params: { start: startTime, end: endTime } }
+            );
+            return response.data;
+        } catch {
+            // Backend may not have recordings API yet — return empty gracefully
+            return [];
+        }
+    },
+
+    /**
+     * Get StreamInfo (WebRTC/HLS URLs) for a specific time window.
+     * Returns null if not available.
+     */
+    getRecordingUrl: async (
+        nvrId: string,
+        channelId: number,
+        startTime: string,
+        endTime: string
+    ): Promise<StreamInfo | null> => {
+        try {
+            const response = await client.get(
+                `${API_ENDPOINTS.STREAM}/${nvrId}/${channelId}/recording-url`,
+                { params: { start: startTime, end: endTime } }
+            );
+            return response.data || null;
+        } catch {
+            return null;
+        }
     }
 };
 

@@ -82,4 +82,12 @@ export interface OnvifCamera {
     status: string;
 }
 
+export interface PlaybackSegment {
+    startTime: string;   // ISO 8601 datetime string
+    endTime: string;     // ISO 8601 datetime string
+    duration: number;    // Duration in seconds
+    url?: string;        // Direct MP4/HLS playback URL if available
+    thumbnailUrl?: string;
+}
+
 export { CAM_STATUS, NVR_TYPE, USER_ROLE } from '../constants';

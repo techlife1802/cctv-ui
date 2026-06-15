@@ -1,9 +1,14 @@
 package com.cctv.api.controller;
 
 import com.cctv.api.dto.CameraStreamDto;
+import com.cctv.api.dto.PlaybackSegmentDto;
 import com.cctv.api.dto.StreamInfoDto;
+import com.cctv.api.model.NVR;
+import com.cctv.api.model.NvrType;
 import com.cctv.api.model.User;
 import com.cctv.api.model.UserRole;
+import com.cctv.api.service.PlaybackProvider;
+import com.cctv.api.service.PlaybackProviderFactory;
 import com.cctv.api.service.HlsService;
 import com.cctv.api.service.MediaMtxService;
 import com.cctv.api.service.NvrService;
@@ -36,6 +41,7 @@ public class StreamController {
     private final MediaMtxService mediaMtxService;
     private final UserAuditService userAuditService;
     private final UserRepository userRepository;
+    private final PlaybackProviderFactory playbackProviderFactory;
 
     @GetMapping("/list")
     public List<CameraStreamDto> getStreams(
@@ -191,6 +197,100 @@ public class StreamController {
             } catch (MalformedURLException e) {
                 log.error("Error serving segment", e);
             }
+        }
+
+        return ResponseEntity.notFound().build();
+    }
+
+    /**
+     * GET /api/stream/{nvrId}/{channelId}/recordings?start=ISO&end=ISO
+     *
+     * Returns a list of recording segments from the NVR for the given channel and time range.
+     * Currently supports Hikvision NVRs via ISAPI. Returns an empty list for unsupported types.
+     */
+    @GetMapping(value = "/{nvrId}/{channelId}/recordings")
+    public ResponseEntity<java.util.List<PlaybackSegmentDto>> getRecordings(
+            @PathVariable String nvrId,
+            @PathVariable int channelId,
+            @RequestParam String start,
+            @RequestParam String end,
+            Principal principal) {
+
+        log.info("Recording search: NVR={}, ch={}, start={}, end={}", nvrId, channelId, start, end);
+
+        NVR nvr;
+        try {
+            nvr = nvrService.getNvrById(nvrId);
+        } catch (Exception e) {
+            log.error("NVR not found: {}", nvrId);
+            return ResponseEntity.notFound().build();
+        }
+
+        try {
+            PlaybackProvider provider = playbackProviderFactory.getProvider(nvr);
+            java.util.List<PlaybackSegmentDto> segments = provider.searchRecordings(nvr, channelId, start, end);
+            log.info("Found {} recording segments for channel {}", segments.size(), channelId);
+            return ResponseEntity.ok(segments);
+        } catch (IllegalArgumentException e) {
+            log.info("NVR type '{}' does not support recording search via this API yet", nvr.getType());
+            return ResponseEntity.ok(java.util.Collections.emptyList());
+        }
+    }
+
+    /**
+     * GET /api/stream/{nvrId}/{channelId}/recording-url?start=ISO&end=ISO
+     *
+     * Configures a temporary MediaMTX path for the RTSP playback stream and returns
+     * the StreamInfoDto (containing WebRTC/HLS URLs) for the frontend to play.
+     */
+    @GetMapping(value = "/{nvrId}/{channelId}/recording-url")
+    public ResponseEntity<StreamInfoDto> getRecordingUrl(
+            @PathVariable String nvrId,
+            @PathVariable int channelId,
+            @RequestParam String start,
+            @RequestParam String end,
+            Principal principal,
+            HttpServletRequest request) {
+
+        NVR nvr;
+        try {
+            nvr = nvrService.getNvrById(nvrId);
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
+
+        try {
+            PlaybackProvider provider = playbackProviderFactory.getProvider(nvr);
+            String rtspUrl = provider.getPlaybackUrl(nvr, channelId, start, end);
+            
+            if (rtspUrl != null && !rtspUrl.isEmpty()) {
+                // Create a reusable path for this playback session to prevent duplicate RTSP streams
+                String pathName = String.format("pb_%s_%d", nvrId, channelId);
+                
+                try {
+                    // Force delete the existing path config first to terminate any active NVR session cleanly
+                    try {
+                        mediaMtxService.deletePath(pathName).block(java.time.Duration.ofSeconds(2));
+                        // Brief sleep to allow the NVR to fully release and free the RTSP stream slot
+                        Thread.sleep(800);
+                    } catch (Exception ex) {
+                        log.debug("No existing path to delete or error deleting path: {}", ex.getMessage());
+                    }
+
+                    Boolean configured = mediaMtxService.configurePath(pathName, rtspUrl)
+                            .block(java.time.Duration.ofSeconds(5));
+                    if (Boolean.FALSE.equals(configured)) {
+                        log.warn("Failed to configure MediaMTX path: {}", pathName);
+                    }
+                } catch (Exception e) {
+                    log.error("Error configuring MediaMTX playback path: {}. Error: {}", pathName, e.getMessage());
+                }
+
+                StreamInfoDto info = mediaMtxService.getStreamInfoForPath(pathName, pathName, rtspUrl, request.getServerName());
+                return ResponseEntity.ok(info);
+            }
+        } catch (IllegalArgumentException e) {
+            log.warn("NVR type not supported for playback: {}", nvr.getType());
         }
 
         return ResponseEntity.notFound().build();

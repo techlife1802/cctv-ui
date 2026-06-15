@@ -31,9 +31,6 @@ services:
     restart: unless-stopped
     depends_on:
       - coturn
-    extra_hosts:
-      - "webrtc.campuswatch.in:127.0.0.1"
-      - "stream.campuswatch.in:127.0.0.1"
 
   nginx_proxy:
     image: nginx:alpine
@@ -67,7 +64,7 @@ services:
       - --log-file=stdout
       - --realm=mediamtx
       - --user=mediamtx:mediamtxpassword
-      - --external-ip=webrtc.campuswatch.in
+      - --external-ip=127.0.0.1   # localhost — no Cloudflare tunnel needed
       - --min-port=49152
       - --max-port=49200 # Reduced range for Docker performance
     restart: unless-stopped
@@ -84,16 +81,17 @@ services:
       MEDIAMTX_API_URL: http://mediamtx:8557
       MEDIAMTX_API_USERNAME: admin
       MEDIAMTX_API_PASSWORD: admin
-      MEDIAMTX_STREAM_BASE_URL: https://stream.campuswatch.in
-      MEDIAMTX_WEBRTC_BASE_URL: https://stream.campuswatch.in
-      MEDIAMTX_PUBLIC_HOST: "webrtc.campuswatch.in"
+      MEDIAMTX_STREAM_BASE_URL: http://localhost:8000   # nginx_proxy (HLS + WHEP)
+      MEDIAMTX_WEBRTC_BASE_URL: http://localhost:8000   # nginx_proxy (WHEP endpoint)
+      MEDIAMTX_PUBLIC_HOST: "localhost"                  # TURN/ICE host for local use
+      TZ: Asia/Kolkata
     depends_on:
       db:
         condition: service_healthy
       mediamtx:
         condition: service_started
     healthcheck:
-      test: [ "CMD", "curl", "-f", "https://api.campuswatch.in/actuator/health" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/actuator/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -111,9 +109,9 @@ services:
     ports:
       - "3000:8080"
     environment:
-      REACT_APP_API_URL: https://api.campuswatch.in
-      REACT_APP_HLS_BASE_URL: https://stream.campuswatch.in
-      REACT_APP_WEBRTC_BASE_URL: https://webrtc.campuswatch.in
+      REACT_APP_API_URL: http://localhost:8080       # backend REST API
+      REACT_APP_HLS_BASE_URL: http://localhost:8000  # nginx_proxy → MediaMTX HLS
+      REACT_APP_WEBRTC_BASE_URL: http://localhost:8000 # nginx_proxy → MediaMTX WHEP
     depends_on:
       backend:
         condition: service_started

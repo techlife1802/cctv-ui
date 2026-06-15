@@ -6,11 +6,14 @@ import { BASE_URL } from '../../api/client';
 import { streamService } from '../../services/apiService';
 import WebRtcPlayer from '../WebRtcPlayer';
 import { AudioOutlined, AudioMutedOutlined, ReloadOutlined } from '@ant-design/icons';
+import { startRecording, captureStreamFromVideo, RecordingSession } from '../../utils/recordUtils';
+import { message } from 'antd';
 
 interface CameraCardProps {
     camera: Camera;
     onClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean) => void;
     onStreamReady?: (camera: Camera, stream: MediaStream) => void;
+    onPlayback?: (camera: Camera) => void;
     index?: number;
     isModalCard?: boolean;
     useSubstream?: boolean;
@@ -49,6 +52,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
     camera,
     onClick,
     onStreamReady,
+    onPlayback,
     index = 0,
     isModalCard = false,
     useSubstream = false
@@ -56,6 +60,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const hlsRef = useRef<Hls | null>(null);
     const activeStreamRef = useRef<MediaStream | null>(null);
+    const recordingSessionRef = useRef<RecordingSession | null>(null);
 
     const initialLoadDoneRef = useRef(false);
 
@@ -66,6 +71,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
     const [streamStatus, setStreamStatus] = useState<'loading' | 'online' | 'retrying' | 'failed' | string>(camera.status);
     const [isMuted, setIsMuted] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [isRecording, setIsRecording] = useState(false);
 
     const handleStatusChange = React.useCallback((status: 'loading' | 'online' | 'retrying' | 'failed') => {
         setStreamStatus(status);
@@ -92,6 +98,16 @@ const CameraCard: React.FC<CameraCardProps> = ({
         onClick(camera, activeStreamRef.current || undefined);
     };
 
+    const handleTalkClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onClick(camera, activeStreamRef.current || undefined, true);
+    };
+
+    const handlePlaybackClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (onPlayback) onPlayback(camera);
+    };
+
     const handleRefresh = (e: React.MouseEvent) => {
         e.stopPropagation();
         logger.info(`Refreshing stream for ${camera.name}`);
@@ -112,6 +128,44 @@ const CameraCard: React.FC<CameraCardProps> = ({
         // Trigger re-fetch by incrementing refresh key
         setRefreshKey(prev => prev + 1);
     };
+
+    const handleToggleRecording = (e: React.MouseEvent) => {
+        e.stopPropagation();
+
+        if (isRecording) {
+            if (recordingSessionRef.current) {
+                recordingSessionRef.current.stop();
+                recordingSessionRef.current = null;
+                setIsRecording(false);
+                message.success(`Recording saved for ${camera.name}`);
+            }
+        } else {
+            // Prefer the live WebRTC MediaStream; fall back to captureStream() from video element
+            let stream: MediaStream | null = activeStreamRef.current || null;
+            if (!stream && videoRef.current) {
+                stream = captureStreamFromVideo(videoRef.current);
+            }
+
+            if (stream) {
+                const session = startRecording(stream, camera.name);
+                recordingSessionRef.current = session;
+                setIsRecording(true);
+                message.info(`Recording started for ${camera.name}`);
+            } else {
+                message.error('No active stream to record. Please wait for the stream to load.');
+            }
+        }
+    };
+
+    // Stop recording on unmount / stream change
+    useEffect(() => {
+        return () => {
+            if (recordingSessionRef.current) {
+                recordingSessionRef.current.stop();
+                recordingSessionRef.current = null;
+            }
+        };
+    }, []);
 
     // Fetch MediaMTX stream info if needed
     useEffect(() => {
@@ -329,6 +383,8 @@ const CameraCard: React.FC<CameraCardProps> = ({
     }, [hasError, isLoading, camera.name]);
 
     const shouldUseWebRtc = streamInfo?.mediamtxEnabled && useWebRtc && streamInfo.webRtcUrl;
+    // Two-way audio is only available on WebRTC streams
+    const canTalk = !!shouldUseWebRtc;
 
     return (
         <div className="camera-card" onClick={handleCardClick}>
@@ -418,12 +474,21 @@ const CameraCard: React.FC<CameraCardProps> = ({
                             </button>
                         </div>
                     )}
+
+                    {/* Recording indicator on card */}
+                    {isRecording && (
+                        <div className="card-recording-indicator">
+                            <span className="card-rec-dot" />
+                            REC
+                        </div>
+                    )}
                 </div>
             ) : (
                 <img src={camera.thumbnail} alt={camera.name} loading="lazy" />
             )}
 
             <div className="camera-overlay">
+                {/* Status Badge */}
                 {streamStatus.toLowerCase() === 'online' ? (
                     <div className="status-badge online" style={{
                         background: 'transparent',
@@ -439,17 +504,62 @@ const CameraCard: React.FC<CameraCardProps> = ({
                         {streamStatus}
                     </div>
                 )}
-                {/* <div className="camera-info">
-                    <h4>{camera.name}</h4>
-                    <p>{camera.location}</p>
-                </div> */}
-                {/* <div className="audio-toggle" onClick={toggleAudio}>
-                    {isMuted ? (
-                        <AudioMutedOutlined title="Unmute" />
-                    ) : (
-                        <AudioOutlined title="Mute" style={{ color: '#1890ff' }} />
-                    )}
-                </div> */}
+
+                {/* Action Buttons - visible on hover */}
+                <div className="camera-action-buttons" onClick={(e) => e.stopPropagation()}>
+                    {/* Mute / Unmute */}
+                    <button
+                        className={`cam-action-btn mute-btn ${!isMuted ? 'active' : ''}`}
+                        onClick={toggleAudio}
+                        title={isMuted ? 'Unmute Camera Audio' : 'Mute Camera Audio'}
+                    >
+                        {isMuted ? <AudioMutedOutlined /> : <AudioOutlined />}
+                    </button>
+
+                    {/* Two-Way Talk — WebRTC only */}
+                    <button
+                        className={`cam-action-btn talk-btn ${canTalk ? '' : 'disabled'}`}
+                        onClick={canTalk ? handleTalkClick : undefined}
+                        title={canTalk ? 'Start Two-Way Communication' : 'Two-way audio requires WebRTC stream'}
+                        disabled={!canTalk}
+                    >
+                        {/* Microphone SVG icon for talk */}
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                        </svg>
+                    </button>
+
+                    {/* Record */}
+                    <button
+                        className={`cam-action-btn record-btn ${isRecording ? 'recording' : ''}`}
+                        onClick={handleToggleRecording}
+                        title={isRecording ? 'Stop Recording' : 'Start Recording'}
+                    >
+                        {isRecording ? (
+                            // Stop icon
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                                <path d="M6 6h12v12H6z"/>
+                            </svg>
+                        ) : (
+                            // Record circle icon
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                                <circle cx="12" cy="12" r="8"/>
+                            </svg>
+                        )}
+                    </button>
+
+                    {/* Playback */}
+                    <button
+                        className="cam-action-btn playback-btn"
+                        onClick={handlePlaybackClick}
+                        title="View Playback / Recordings"
+                    >
+                        {/* Clock/history icon */}
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                            <path d="M13 3a9 9 0 1 0 9 9h-2a7 7 0 1 1-7-7v2l4-3.27L13 1v2zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
     );

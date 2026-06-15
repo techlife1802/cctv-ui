@@ -12,6 +12,12 @@ interface WebRtcPlayerProps {
     onStatusChange?: (status: 'loading' | 'online' | 'retrying' | 'failed') => void;
     isTalking?: boolean;
     videoRef?: React.RefObject<HTMLVideoElement | null>;
+    onPlay?: () => void;
+    onPause?: () => void;
+    onTimeUpdate?: () => void;
+    onDurationChange?: () => void;
+    onCanPlay?: () => void;
+    onWaiting?: () => void;
 }
 
 const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
@@ -24,7 +30,13 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
     iceServers,
     onStatusChange,
     isTalking = false,
-    videoRef: externalVideoRef
+    videoRef: externalVideoRef,
+    onPlay,
+    onPause,
+    onTimeUpdate,
+    onDurationChange,
+    onCanPlay,
+    onWaiting
 }) => {
     const internalVideoRef = useRef<HTMLVideoElement>(null);
     const videoRef = externalVideoRef || internalVideoRef;
@@ -219,6 +231,12 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                 autoPlay={autoPlay}
                 muted={muted}
                 playsInline
+                onPlay={onPlay}
+                onPause={onPause}
+                onTimeUpdate={onTimeUpdate}
+                onDurationChange={onDurationChange}
+                onCanPlay={onCanPlay}
+                onWaiting={onWaiting}
                 style={{
                     width: '100%',
                     height: '100%',

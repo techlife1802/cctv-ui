@@ -534,6 +534,122 @@
                 padding: 6px;
             }
         }
+
+        /* ─── Camera action buttons (Mute / Talk / Record) ─────────────────── */
+        .camera-action-buttons {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            pointer-events: none;
+            align-self: flex-end;
+
+            @media (max-width: 768px) {
+                opacity: 1;           // Always visible on touch devices
+                transform: none;
+                pointer-events: auto;
+            }
+        }
+    }
+
+    /* Show action buttons when the card is hovered */
+    &:hover .camera-action-buttons {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+
+    /* Individual action button */
+    .cam-action-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(6px);
+        transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+
+        @media (max-width: 768px) {
+            width: 26px;
+            height: 26px;
+            font-size: 12px;
+        }
+
+        &:hover:not(.disabled) {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.12);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        &:active:not(.disabled) {
+            transform: scale(0.95);
+        }
+
+        /* Mute: turns blue when UNmuted (audio is ON) */
+        &.mute-btn.active {
+            background: rgba(24, 144, 255, 0.7);
+            box-shadow: 0 0 8px rgba(24, 144, 255, 0.5);
+        }
+
+        /* Talk: pulsing green when active */
+        &.talk-btn:not(.disabled):hover {
+            background: rgba(82, 196, 26, 0.5);
+        }
+
+        /* Record: pulsing red when recording */
+        &.record-btn.recording {
+            background: rgba(255, 77, 79, 0.8);
+            animation: recordPulse 1.4s ease-in-out infinite;
+            box-shadow: 0 0 10px rgba(255, 77, 79, 0.6);
+        }
+
+        /* Playback: purple/indigo accent on hover */
+        &.playback-btn:hover {
+            background: rgba(114, 46, 209, 0.55);
+            box-shadow: 0 0 10px rgba(114, 46, 209, 0.4);
+        }
+
+        &.disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+    }
+
+    /* REC badge overlay on the card (bottom-left) */
+    .card-recording-indicator {
+        position: absolute;
+        bottom: 44px;          // sit above the overlay
+        left: 10px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(255, 77, 79, 0.85);
+        backdrop-filter: blur(6px);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        padding: 3px 8px;
+        border-radius: 4px;
+        z-index: 12;
+        pointer-events: none;
+
+        .card-rec-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #fff;
+            animation: recordPulse 1s ease-in-out infinite;
+            flex-shrink: 0;
+        }
     }
 }
 
@@ -563,15 +679,80 @@
     .modal-video-container {
         border-radius: 8px;
         overflow: hidden;
+        position: relative;
 
-        .recording-indicator,
-        .talking-indicator {
+        /* ─── Recording indicator (top-left) ─────────────────────────────── */
+        .recording-indicator {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 77, 79, 0.8);
             backdrop-filter: blur(8px);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            padding: 4px 10px;
+            border-radius: 4px;
+            z-index: 20;
+            pointer-events: none;
+
+            .recording-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #fff;
+                animation: recordPulse 1s ease-in-out infinite;
+                flex-shrink: 0;
+            }
 
             @media (max-width: 768px) {
-                font-size: 11px;
+                font-size: 10px;
                 padding: 3px 8px;
+                top: 8px;
+                left: 8px;
+            }
+        }
+
+        /* ─── Talking indicator (top-left, below recording if both active) ── */
+        .talking-indicator {
+            position: absolute;
+            top: 12px;
+            left: 90px;            // offset from recording indicator
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(82, 196, 26, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            padding: 4px 10px;
+            border-radius: 4px;
+            z-index: 20;
+            pointer-events: none;
+            animation: talkFadeIn 0.3s ease;
+
+            .talking-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #fff;
+                animation: talkPulse 0.8s ease-in-out infinite;
+                flex-shrink: 0;
+            }
+
+            @media (max-width: 768px) {
+                font-size: 10px;
+                padding: 3px 8px;
+                top: 8px;
+                left: 8px;
             }
         }
     }
@@ -608,4 +789,31 @@
             }
         }
     }
+
+    /* Talk button active: pulsing green glow */
+    .talking-btn-active {
+        animation: talkBtnPulse 1.2s ease-in-out infinite !important;
+    }
+}
+
+/* ─── Global keyframe animations ─────────────────────────────────────────── */
+
+@keyframes recordPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.85); }
+}
+
+@keyframes talkPulse {
+    0%, 100% { opacity: 1; transform: scale(1.1); }
+    50%       { opacity: 0.55; transform: scale(0.8); }
+}
+
+@keyframes talkFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes talkBtnPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.5); }
+    50%       { box-shadow: 0 0 0 6px rgba(82, 196, 26, 0); }
 }

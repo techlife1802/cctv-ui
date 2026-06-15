@@ -141,13 +141,19 @@ public class MediaMtxService {
      */
     public StreamInfoDto getStreamInfo(String nvrId, int channelId, boolean substream, String rtspUrl,
             String hostName) {
+        String streamId = getStreamId(nvrId, channelId, substream);
+        String pathName = getPathName(nvrId, channelId, substream);
+        return getStreamInfoForPath(pathName, streamId, rtspUrl, hostName);
+    }
+
+    /**
+     * Get stream information for a custom path name (e.g. for playback)
+     */
+    public StreamInfoDto getStreamInfoForPath(String pathName, String streamId, String rtspUrl, String hostName) {
         if (!mediamtxEnabled) {
             log.debug("MediaMTX is disabled, returning null stream info");
             return null;
         }
-
-        String streamId = getStreamId(nvrId, channelId, substream);
-        String pathName = getPathName(nvrId, channelId, substream);
 
         String host = "localhost";
         // Resolve host for fallbacks or ICE candidates

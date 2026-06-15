@@ -4,7 +4,8 @@ import {
     EyeOutlined, CloseOutlined, CameraOutlined, PlayCircleOutlined, StopOutlined,
     AudioOutlined, AudioMutedOutlined, InteractionOutlined, MenuOutlined,
     LeftOutlined, RightOutlined, PauseCircleOutlined,
-    FullscreenOutlined, FullscreenExitOutlined, MenuFoldOutlined, MenuUnfoldOutlined
+    FullscreenOutlined, FullscreenExitOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
+    HistoryOutlined
 } from '@ant-design/icons';
 import { captureVideoFrame } from '../../utils/screenshotUtils';
 import { startRecording, captureStreamFromVideo, RecordingSession } from '../../utils/recordUtils';
@@ -17,6 +18,7 @@ import LazyCameraCard from '../../components/LazyCameraCard';
 import DashboardSidebar from '../../components/DashboardSidebar/DashboardSidebar';
 import CameraOverview from '../../components/CameraOverview/CameraOverview';
 import { logger } from '../../utils/logger';
+import PlaybackModal from '../../components/PlaybackModal/PlaybackModal';
 import './Dashboard.scss';
 
 const { Title, Text } = Typography;
@@ -29,9 +31,10 @@ interface VideoStreamModalProps {
     startTalking?: boolean;
     cachedStreamInfo?: { webRtcUrl?: string; hlsUrl?: string; iceServers?: any[] };
     onCacheStreamInfo?: (info: { webRtcUrl?: string; hlsUrl?: string; iceServers?: any[] }) => void;
+    onPlayback?: (camera: Camera) => void;
 }
 
-const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, camera, initialStream, onClose, startTalking, cachedStreamInfo, onCacheStreamInfo }: VideoStreamModalProps) => {
+const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, camera, initialStream, onClose, startTalking, cachedStreamInfo, onCacheStreamInfo, onPlayback }: VideoStreamModalProps) => {
     const [webRtcUrl, setWebRtcUrl] = useState<string | null>(null);
     const [hlsUrl, setHlsUrl] = useState<string | null>(null);
     const [useHlsFallback, setUseHlsFallback] = useState(false);
@@ -41,6 +44,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
     const [streamStatus, setStreamStatus] = useState<string>('loading');
     const [isMuted, setIsMuted] = useState(true);
     const [isRecording, setIsRecording] = useState(false);
+    const [isTalking, setIsTalking] = useState(startTalking ?? false);
 
     const recordingSessionRef = useRef<RecordingSession | null>(null);
     const modalVideoRef = useRef<HTMLVideoElement>(null);
@@ -72,6 +76,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             setHasError(false);
             setIceServers([]);
             setStreamStatus('loading');
+            setIsTalking(false);
             if (modalVideoRef.current) modalVideoRef.current.srcObject = null;
             if (hlsInstanceRef.current) {
                 hlsInstanceRef.current.destroy();
@@ -83,6 +88,17 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             }
             setIsRecording(false);
             setIsMuted(true);
+        }
+    }, [open, startTalking]);
+
+    // Sync isTalking with startTalking prop when modal opens
+    useEffect(() => {
+        if (open) {
+            setIsTalking(startTalking ?? false);
+            // Auto-unmute incoming audio when going into talk mode
+            if (startTalking) {
+                setIsMuted(false);
+            }
         }
     }, [open, startTalking]);
 
@@ -201,6 +217,15 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
 
     const isLoading = !hasError && (streamStatus === 'loading' || streamStatus === 'retrying');
 
+    const handleToggleTalk = useCallback(() => {
+        setIsTalking(prev => {
+            const next = !prev;
+            // When starting to talk, unmute so we can hear the camera
+            if (next) setIsMuted(false);
+            return next;
+        });
+    }, []);
+
     return (
         <Modal
             title={<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><EyeOutlined /> {camera?.name}</div>}
@@ -208,14 +233,29 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             onCancel={onClose}
             zIndex={10009}
             footer={[
-                // <Button
-                //     key="record"
-                //     danger={isRecording}
-                //     icon={isRecording ? <StopOutlined /> : <PlayCircleOutlined />}
-                //     onClick={handleToggleRecording}
-                // >
-                //     {isRecording ? 'Stop Recording' : 'Start Recording'}
-                // </Button>,
+                <Button
+                    key="record"
+                    danger={isRecording}
+                    icon={isRecording ? <StopOutlined /> : <PlayCircleOutlined />}
+                    onClick={handleToggleRecording}
+                    title={isRecording ? 'Stop recording and download' : 'Record stream to file'}
+                >
+                    {isRecording ? 'Stop Recording' : 'Record'}
+                </Button>,
+                <Button
+                    key="talk"
+                    icon={
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style={{ verticalAlign: 'middle', marginRight: 4 }}>
+                            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                        </svg>
+                    }
+                    onClick={handleToggleTalk}
+                    type={isTalking ? 'primary' : 'default'}
+                    className={isTalking ? 'talking-btn-active' : ''}
+                    title="Toggle two-way audio communication"
+                >
+                    {isTalking ? 'Stop Talking' : 'Talk'}
+                </Button>,
                 <Button
                     key="audio"
                     icon={isMuted ? <AudioMutedOutlined /> : <AudioOutlined />}
@@ -226,11 +266,19 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                 </Button>,
 
                 <Button
+                    key="playback"
+                    icon={<HistoryOutlined />}
+                    onClick={() => camera && onPlayback && onPlayback(camera)}
+                    title="View playback and recordings"
+                >
+                    Playback
+                </Button>,
+                <Button
                     key="screenshot"
                     icon={<CameraOutlined />}
                     onClick={handleScreenshot}
                 >
-                    Take Screenshot
+                    Screenshot
                 </Button>,
                 <Button key="close" type="primary" onClick={onClose}>
                     Close
@@ -249,6 +297,14 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                     </div>
                 )}
 
+                {isTalking && (
+                    <div className="talking-indicator">
+                        <div className="talking-dot" />
+                        LIVE TALK
+                    </div>
+                )}
+
+
 
                 {/* Video Elements - Simplified rendering logic */}
                 {open && initialStream ? (
@@ -261,10 +317,12 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                     />
                 ) : camera && webRtcUrl && !hasError && !useHlsFallback ? (
                     <WebRtcPlayer
+                        key={`webrtc-${isTalking ? 'talk' : 'listen'}`}
                         streamUrl={webRtcUrl}
                         iceServers={iceServers}
                         autoPlay
                         muted={isMuted}
+                        isTalking={isTalking}
                         onStatusChange={handleStatusChange}
                         onError={handleWebRtcError}
                         videoRef={modalVideoRef}
@@ -335,6 +393,7 @@ interface SelectedCameraGridProps {
     cameras: Camera[];
     onCameraClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean) => void;
     onStreamReady?: (camera: Camera, stream: MediaStream) => void;
+    onPlayback?: (camera: Camera) => void;
     isModalOpen: boolean;
     isFullscreen: boolean;
     onToggleFullscreen: () => void;
@@ -344,6 +403,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
     cameras,
     onCameraClick,
     onStreamReady,
+    onPlayback,
     isModalOpen,
     isFullscreen,
     onToggleFullscreen
@@ -545,6 +605,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                             camera={camera}
                             onClick={onCameraClick}
                             onStreamReady={onStreamReady}
+                            onPlayback={onPlayback}
                             index={idx}
                             useSubstream={useSubstream}
                         />
@@ -560,6 +621,7 @@ const Dashboard: React.FC = () => {
     const [selectedCameraIds, setSelectedCameraIds] = useState<string[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [videoModal, setVideoModal] = useState<{ open: boolean; camera: Camera | null; stream: MediaStream | null; startTalking?: boolean }>({ open: false, camera: null, stream: null });
+    const [playbackModal, setPlaybackModal] = useState<{ open: boolean; camera: Camera | null }>({ open: false, camera: null });
     const [activeStreams, setActiveStreams] = useState<Map<string, MediaStream>>(new Map());
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -576,6 +638,14 @@ const Dashboard: React.FC = () => {
 
     const handleCloseModal = useCallback(() => {
         setVideoModal((prev: any) => ({ ...prev, open: false }));
+    }, []);
+
+    const handleOpenPlayback = useCallback((camera: Camera) => {
+        setPlaybackModal({ open: true, camera });
+    }, []);
+
+    const handleClosePlayback = useCallback(() => {
+        setPlaybackModal(prev => ({ ...prev, open: false }));
     }, []);
 
     const handleStreamReady = useCallback((camera: Camera, stream: MediaStream) => {
@@ -706,6 +776,7 @@ const Dashboard: React.FC = () => {
                         cameras={selectedCameras}
                         onCameraClick={handleCameraClick}
                         onStreamReady={handleStreamReady}
+                        onPlayback={handleOpenPlayback}
                         isModalOpen={videoModal.open}
                         isFullscreen={isFullscreen}
                         onToggleFullscreen={toggleFullscreen}
@@ -721,6 +792,16 @@ const Dashboard: React.FC = () => {
                 startTalking={videoModal.startTalking}
                 cachedStreamInfo={videoModal.camera ? streamInfoCache.get(String(videoModal.camera.id)) : undefined}
                 onCacheStreamInfo={(info: any) => videoModal.camera && handleCacheStreamInfo(String(videoModal.camera.id), info)}
+                onPlayback={(camera) => {
+                    handleCloseModal();
+                    handleOpenPlayback(camera);
+                }}
+            />
+
+            <PlaybackModal
+                open={playbackModal.open}
+                camera={playbackModal.camera}
+                onClose={handleClosePlayback}
             />
         </div>
     );

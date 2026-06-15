@@ -1,0 +1,15 @@
+--- pom.xml
++++ pom.xml
+@@ -79,6 +79,12 @@
+ 			<artifactId>httpclient</artifactId>
+ 			<version>4.5.13</version>
+ 		</dependency>
++
++		<!-- JNA for Native SDKs -->
++		<dependency>
++			<groupId>net.java.dev.jna</groupId>
++			<artifactId>jna</artifactId>
++			<version>5.14.0</version>
++		</dependency>
+ 
+ 	</dependencies>
