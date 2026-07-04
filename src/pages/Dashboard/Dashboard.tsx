@@ -218,12 +218,21 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                     Close
                 </Button>
             ]}
-            width="80vw"
+            style={{ maxHeight: '85vh', top: 'auto' }}
+            styles={{
+                body: {
+                    maxHeight: 'calc(85vh - 120px)',
+                    overflow: 'hidden',
+                    padding: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                }
+            }}
             centered
             className="fullscreen-video-modal"
             closeIcon={<CloseOutlined style={{ fontSize: '20px', color: '#fff' }} />}
         >
-            <div className="modal-video-container" style={{ position: 'relative', width: '100%', background: '#000' }}>
+            <div className="modal-video-container" style={{ position: 'relative' }}>
                 {isRecording && (
                     <div className="recording-indicator">
                         <div className="recording-dot" />

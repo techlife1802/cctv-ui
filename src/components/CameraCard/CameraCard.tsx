@@ -471,51 +471,29 @@ const CameraCard: React.FC<CameraCardProps> = ({
             )}
 
             <div className="camera-overlay">
-                {streamStatus.toLowerCase() === 'online' ? (
-                    <div className="status-badge online" style={{
-                        background: 'transparent',
-                        border: 'none',
-                        padding: '4px',
-                        backdropFilter: 'none'
-                    }}>
-                        <div className="dot" style={{ boxShadow: '0 0 8px #52c41a' }} />
+                <div className="overlay-top">
+                    {streamStatus.toLowerCase() === 'online' ? (
+                        <div className="status-badge online">
+                            <div className="dot" style={{ boxShadow: '0 0 8px #52c41a' }} />
+                        </div>
+                    ) : (
+                        <div className={`status-badge ${streamStatus.toLowerCase()}`}>
+                            <div className="dot" />
+                            {streamStatus}
+                        </div>
+                    )}
+                    <div 
+                        className="screenshot-button" 
+                        onClick={handleScreenshot}
+                        title="Take Screenshot"
+                    >
+                        <CameraOutlined />
                     </div>
-                ) : (
-                    <div className={`status-badge ${streamStatus.toLowerCase()}`}>
-                        <div className="dot" />
-                        {streamStatus}
-                    </div>
-                )}
-                {/* <div className="camera-info">
+                </div>
+                <div className="camera-info">
                     <h4>{camera.name}</h4>
                     <p>{camera.location}</p>
-                </div> */}
-                <div 
-                    className="screenshot-button" 
-                    onClick={handleScreenshot}
-                    title="Take Screenshot"
-                    style={{
-                        background: 'rgba(0,0,0,0.5)',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        color: '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginLeft: 'auto',
-                        pointerEvents: 'auto'
-                    }}
-                >
-                    <CameraOutlined />
                 </div>
-                {/* <div className="audio-toggle" onClick={toggleAudio}>
-                    {isMuted ? (
-                        <AudioMutedOutlined title="Unmute" />
-                    ) : (
-                        <AudioOutlined title="Mute" style={{ color: '#1890ff' }} />
-                    )}
-                </div> */}
             </div>
         </div>
     );
