@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Typography, Modal, Empty, Spin, Button, message, Select } from 'antd';
+import { Typography, Modal, Empty, Spin, Button, message, Select, Drawer } from 'antd';
 import {
     EyeOutlined, CloseOutlined, CameraOutlined, PlayCircleOutlined, StopOutlined,
     AudioOutlined, AudioMutedOutlined, InteractionOutlined, MenuOutlined,
     LeftOutlined, RightOutlined, PauseCircleOutlined,
-    FullscreenOutlined, FullscreenExitOutlined, MenuFoldOutlined, MenuUnfoldOutlined
+    FullscreenOutlined, FullscreenExitOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
+    ControlOutlined, DashboardOutlined
 } from '@ant-design/icons';
 import { captureVideoFrame } from '../../utils/screenshotUtils';
 import { startRecording, captureStreamFromVideo, RecordingSession } from '../../utils/recordUtils';
@@ -347,6 +348,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
     const [gridSize, setGridSize] = useState(12);
     const [windowWidth, setWindowWidth] = useState(window.innerWidth);
     const [rotationInterval, setRotationInterval] = useState(120000); // Default 2 min
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const ROTATION_MS = rotationInterval;
 
     useEffect(() => {
@@ -443,87 +445,90 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
 
     return (
         <div className={`nvr-grid-container ${isFullscreen ? 'fullscreen' : ''}`}>
-            <div className="grid-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Title level={4} style={{ margin: 0 }}>Cameras ({cameras.length})</Title>
-                    <Select
-                        value={gridSize}
-                        style={{ width: 100 }}
-                        onChange={(value: number) => {
-                            setGridSize(value);
-                            setCurrentPage(0);
-                        }}
-                        options={[
-                            { value: 6, label: '6 View' },
-                            { value: 12, label: '12 View' },
-                            { value: 32, label: '32 View' },
-                        ]}
-                        dropdownStyle={{ zIndex: 10010 }}
-                        onClick={e => e.stopPropagation()}
-                    />
-                </div>
+            {!isMobile && (
+                <div className="grid-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <Title level={4} style={{ margin: 0 }}>Cameras ({cameras.length})</Title>
+                        <Select
+                            value={gridSize}
+                            style={{ width: 100 }}
+                            onChange={(value: number) => {
+                                setGridSize(value);
+                                            setCurrentPage(0);
+                            }}
+                            options={[
+                                { value: 6, label: '6 View' },
+                                { value: 12, label: '12 View' },
+                                { value: 32, label: '32 View' },
+                            ]}
+                            dropdownStyle={{ zIndex: 10010 }}
+                            onClick={e => e.stopPropagation()}
+                        />
+                    </div>
 
-                <div className="pagination-controls" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                    {totalPages > 1 && (
-                        <>
-                            <div className="pagination-buttons">
+                    <div className="pagination-controls" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                        {totalPages > 1 && (
+                            <>
+                                <div className="pagination-buttons">
+                                    <Button
+                                        onClick={handlePrevPage}
+                                        size="small"
+                                        icon={<LeftOutlined />}
+                                    >
+                                        <span className="btn-text">Previous</span>
+                                    </Button>
+                                    <Button
+                                        onClick={handleNextPage}
+                                        size="small"
+                                        icon={<RightOutlined />}
+                                        style={{ flexDirection: 'row-reverse' }}
+                                    >
+                                        <span className="btn-text">Next</span>
+                                    </Button>
+                                </div>
+                                <div className="pagination-info">
+                                    Page {currentPage + 1} of {totalPages} • Showing {currentCameras.length} cameras
+                                </div>
                                 <Button
-                                    onClick={handlePrevPage}
+                                    onClick={toggleAutoRotation}
+                                    type={isAutoRotating ? 'primary' : 'default'}
                                     size="small"
-                                    icon={<LeftOutlined />}
+                                    className="pagination-auto-rotate"
+                                    icon={isAutoRotating ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                                    style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
                                 >
-                                    <span className="btn-text">Previous</span>
+                                    <span className="btn-text">{isAutoRotating ? 'Pause' : 'Auto-Rotate'}</span>
                                 </Button>
-                                <Button
-                                    onClick={handleNextPage}
+                                <Select
+                                    value={rotationInterval}
                                     size="small"
-                                    icon={<RightOutlined />}
-                                    style={{ flexDirection: 'row-reverse' }}
-                                >
-                                    <span className="btn-text">Next</span>
-                                </Button>
-                            </div>
-                            <div className="pagination-info">
-                                Page {currentPage + 1} of {totalPages} • Showing {currentCameras.length} cameras
-                            </div>
-                            <Button
-                                onClick={toggleAutoRotation}
-                                type={isAutoRotating ? 'primary' : 'default'}
-                                size="small"
-                                className="pagination-auto-rotate"
-                                icon={isAutoRotating ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-                                style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
-                            >
-                                <span className="btn-text">{isAutoRotating ? 'Pause' : 'Auto-Rotate'}</span>
-                            </Button>
-                            <Select
-                                value={rotationInterval}
-                                size="small"
-                                onChange={(val: number) => setRotationInterval(val)}
-                                options={[
-                                    { value: 60000, label: '1m' },
-                                    { value: 120000, label: '2m' },
-                                    { value: 180000, label: '3m' },
-                                    { value: 360000, label: '6m' },
-                                    { value: 540000, label: '9m' },
-                                ]}
-                                dropdownStyle={{ zIndex: 10010 }}
-                                style={{ width: 65 }}
-                                className="timer-select"
-                            />
-                        </>
-                    )}
+                                    onChange={(val: number) => setRotationInterval(val)}
+                                    options={[
+                                        { value: 60000, label: '1m' },
+                                        { value: 120000, label: '2m' },
+                                        { value: 180000, label: '3m' },
+                                        { value: 360000, label: '6m' },
+                                        { value: 540000, label: '9m' },
+                                    ]}
+                                    dropdownStyle={{ zIndex: 10010 }}
+                                    style={{ width: 65 }}
+                                    className="timer-select"
+                                />
+                            </>
+                        )}
 
-                    <Button
-                        onClick={onToggleFullscreen}
-                        size="small"
-                        type={isFullscreen ? 'primary' : 'default'}
-                        icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-                    >
-                        <span className="btn-text">{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</span>
-                    </Button>
+                        <Button
+                            onClick={onToggleFullscreen}
+                            size="small"
+                            type={isFullscreen ? 'primary' : 'default'}
+                            icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                        >
+                            <span className="btn-text">{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
+
             <div
                 className="video-grid"
                 style={{
@@ -545,6 +550,158 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                     </div>
                 ))}
             </div>
+
+            {isMobile && (
+                <>
+                    <Button
+                        type="primary"
+                        shape="circle"
+                        icon={<ControlOutlined style={{ fontSize: '22px' }} />}
+                        className="floating-control-btn"
+                        onClick={() => setIsDrawerOpen(true)}
+                        style={{
+                            position: 'fixed',
+                            bottom: '24px',
+                            right: '24px',
+                            width: '56px',
+                            height: '56px',
+                            zIndex: 999,
+                            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
+                            background: '#194ca3',
+                            border: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                    />
+                    <Drawer
+                        title={<div style={{ color: '#fff', fontSize: '18px' }}><ControlOutlined /> Dashboard Controls</div>}
+                        placement="bottom"
+                        onClose={() => setIsDrawerOpen(false)}
+                        open={isDrawerOpen}
+                        height="auto"
+                        className="mobile-controls-drawer"
+                        styles={{
+                            body: {
+                                background: '#14171c',
+                                color: '#fff',
+                                padding: '20px 16px'
+                            },
+                            header: {
+                                background: '#14171c',
+                                borderBottom: '1px solid rgba(255,255,255,0.1)',
+                                color: '#fff'
+                            }
+                        }}
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <Button 
+                                type="primary"
+                                icon={<MenuOutlined />} 
+                                onClick={() => {
+                                    setIsDrawerOpen(false);
+                                    window.dispatchEvent(new Event('open-camera-sidebar'));
+                                }}
+                                style={{ width: '100%', height: '40px', background: '#194ca3', border: 'none' }}
+                            >
+                                Select Cameras (NVR Panel)
+                            </Button>
+
+                            <Button 
+                                icon={<DashboardOutlined />} 
+                                onClick={() => {
+                                    setIsDrawerOpen(false);
+                                    window.dispatchEvent(new Event('open-main-menu'));
+                                }}
+                                style={{ width: '100%', height: '40px', background: '#252930', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}
+                            >
+                                Open Navigation Menu
+                            </Button>
+
+                            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
+                                <div style={{ fontSize: '13px', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>GRID VIEW LAYOUT</div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    {[6, 12, 32].map(size => (
+                                        <Button
+                                            key={size}
+                                            type={gridSize === size ? 'primary' : 'default'}
+                                            onClick={() => {
+                                                setGridSize(size);
+                                                setCurrentPage(0);
+                                            }}
+                                            style={{ flex: 1, height: '36px' }}
+                                        >
+                                            {size} View
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div>
+                                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#fff' }}>Auto-Rotation</div>
+                                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>Cycle through pages of cameras</div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Button
+                                        type={isAutoRotating ? 'primary' : 'default'}
+                                        onClick={() => setIsAutoRotating(prev => !prev)}
+                                        icon={isAutoRotating ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                                    >
+                                        {isAutoRotating ? 'Pause' : 'Start'}
+                                    </Button>
+                                    {isAutoRotating && (
+                                        <Select
+                                            value={rotationInterval}
+                                            onChange={(val) => setRotationInterval(val)}
+                                            options={[
+                                                { value: 60000, label: '1m' },
+                                                { value: 120000, label: '2m' },
+                                                { value: 180000, label: '3m' },
+                                            ]}
+                                            dropdownStyle={{ zIndex: 10015 }}
+                                            style={{ width: 80 }}
+                                        />
+                                    )}
+                                </div>
+                            </div>
+
+                            {totalPages > 1 && (
+                                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <Button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setCurrentPage((prev) => (prev - 1 + totalPages) % totalPages);
+                                                setIsAutoRotating(false);
+                                            }}
+                                            icon={<LeftOutlined />}
+                                            disabled={totalPages <= 1}
+                                        >
+                                            Prev
+                                        </Button>
+                                        <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.85)' }}>
+                                            Page {currentPage + 1} of {totalPages}
+                                        </span>
+                                        <Button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setCurrentPage((prev) => (prev + 1) % totalPages);
+                                                setIsAutoRotating(false);
+                                            }}
+                                            icon={<RightOutlined />}
+                                            style={{ flexDirection: 'row-reverse' }}
+                                            disabled={totalPages <= 1}
+                                        >
+                                            Next
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </Drawer>
+                </>
+            )}
         </div>
     );
 };
@@ -610,6 +767,29 @@ const Dashboard: React.FC = () => {
             setSidebarCollapsed(true);
         }
     }, [isFullscreen]);
+
+    useEffect(() => {
+        const hasCameras = selectedCameraIds.length > 0;
+        const layout = document.querySelector('.main-layout');
+        if (layout) {
+            if (hasCameras) {
+                layout.classList.add('hide-header-mobile');
+            } else {
+                layout.classList.remove('hide-header-mobile');
+            }
+        }
+        return () => {
+            if (layout) {
+                layout.classList.remove('hide-header-mobile');
+            }
+        };
+    }, [selectedCameraIds]);
+
+    useEffect(() => {
+        const handleOpenSidebar = () => setMobileSidebarOpen(true);
+        window.addEventListener('open-camera-sidebar', handleOpenSidebar);
+        return () => window.removeEventListener('open-camera-sidebar', handleOpenSidebar);
+    }, []);
 
     const handleCheckNvrStatus = useCallback(async (nvrName: string, cameras: Camera[]) => {
         const checkStatus = async () => {

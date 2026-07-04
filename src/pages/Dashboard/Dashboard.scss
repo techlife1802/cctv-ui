@@ -672,3 +672,50 @@
         }
     }
 }
+
+// Custom mobile overrides for hide-header-mobile
+.hide-header-mobile {
+    .dashboard-main {
+        @media (max-width: 768px) {
+            padding: 0 !important;
+            padding-top: 0 !important;
+        }
+    }
+    .mobile-menu-button {
+        @media (max-width: 768px) {
+            display: none !important;
+        }
+    }
+}
+
+// Mobile controls drawer styling
+.mobile-controls-drawer {
+    .ant-drawer-content {
+        background: rgba(20, 23, 28, 0.9) !important;
+        backdrop-filter: blur(20px) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+        border-top-left-radius: 16px;
+        border-top-right-radius: 16px;
+    }
+    .ant-drawer-header {
+        background: transparent !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+        
+        .ant-drawer-title {
+            color: #fff !important;
+            font-weight: 600;
+        }
+        
+        .ant-drawer-close {
+            color: rgba(255, 255, 255, 0.65) !important;
+            
+            &:hover {
+                color: #fff !important;
+            }
+        }
+    }
+    .ant-drawer-body {
+        background: transparent !important;
+        padding: 20px 16px !important;
+    }
+}

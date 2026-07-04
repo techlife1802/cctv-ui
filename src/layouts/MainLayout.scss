@@ -141,6 +141,22 @@
             padding: 16px;
         }
     }
+
+    &.dashboard-layout {
+        @media (max-width: 768px) {
+            .site-layout-header {
+                display: none !important;
+            }
+            .site-layout-content-wrapper {
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                border-radius: 0 !important;
+                height: 100vh !important;
+                background: var(--video-grid-bg) !important;
+            }
+        }
+    }
 }
 
 // Page Content Styles
