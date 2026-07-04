@@ -5,11 +5,12 @@ import { logger } from '../../utils/logger';
 import { BASE_URL } from '../../api/client';
 import { streamService } from '../../services/apiService';
 import WebRtcPlayer from '../WebRtcPlayer';
-import { AudioOutlined, AudioMutedOutlined, ReloadOutlined } from '@ant-design/icons';
+import { AudioOutlined, AudioMutedOutlined, ReloadOutlined, CameraOutlined } from '@ant-design/icons';
+import { captureVideoFrame } from '../../utils/screenshotUtils';
 
 interface CameraCardProps {
     camera: Camera;
-    onClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean, forceHls?: boolean) => void;
+    onClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean, forceHls?: boolean, streamInfo?: any) => void;
     onStreamReady?: (camera: Camera, stream: MediaStream | null) => void;
     index?: number;
     isModalCard?: boolean;
@@ -78,6 +79,23 @@ const CameraCard: React.FC<CameraCardProps> = ({
         setStreamStatus(status);
     }, []);
 
+    const handleScreenshot = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        // Try the ref first; if it's stale or not ready, find the actual playing video in the card DOM
+        let videoEl = videoRef.current;
+        if (!videoEl || videoEl.videoWidth === 0) {
+            const card = (e.currentTarget as HTMLElement).closest('.camera-card');
+            if (card) {
+                videoEl = card.querySelector('video') as HTMLVideoElement;
+            }
+        }
+        if (videoEl) {
+            captureVideoFrame(videoEl, camera.name);
+        } else {
+            captureVideoFrame(null, camera.name); // triggers the "not available" message
+        }
+    };
+
     const handleWebRtcError = React.useCallback((err: Error) => {
         logger.warn('WebRTC failed on card, falling back to HLS:', err.message);
         setUseWebRtc(false);
@@ -101,7 +119,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
     }, [camera, onStreamReady]);
 
     const handleCardClick = () => {
-        onClick(camera, activeStreamRef.current || undefined, false, !useWebRtc);
+        onClick(camera, activeStreamRef.current || undefined, false, !useWebRtc, streamInfo);
     };
 
     const handleRefresh = (e: React.MouseEvent) => {
@@ -354,6 +372,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                             onStreamReady={handleStreamReady}
                             onStatusChange={handleStatusChange}
                             onError={handleWebRtcError}
+                            videoRef={videoRef}
                         />
                     ) : (
                         <video
@@ -361,6 +380,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                             muted={isMuted}
                             autoPlay
                             playsInline
+                            crossOrigin="anonymous"
                             preload="metadata"
                             onPlay={() => {
                                 setIsLoading(false);
@@ -470,6 +490,25 @@ const CameraCard: React.FC<CameraCardProps> = ({
                     <h4>{camera.name}</h4>
                     <p>{camera.location}</p>
                 </div> */}
+                <div 
+                    className="screenshot-button" 
+                    onClick={handleScreenshot}
+                    title="Take Screenshot"
+                    style={{
+                        background: 'rgba(0,0,0,0.5)',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginLeft: 'auto',
+                        pointerEvents: 'auto'
+                    }}
+                >
+                    <CameraOutlined />
+                </div>
                 {/* <div className="audio-toggle" onClick={toggleAudio}>
                     {isMuted ? (
                         <AudioMutedOutlined title="Unmute" />

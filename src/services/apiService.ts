@@ -82,6 +82,11 @@ export const streamService = {
             } catch (e) {
                 console.warn('Failed to rewrite stream URLs for local network:', e);
             }
+        } else {
+            // External network via Cloudflare Tunnel (no UDP support).
+            // WebRTC will always fail without a complex TURN over TCP setup.
+            // Force HLS fallback immediately to prevent the 10-second WebRTC timeout.
+            info.webRtcUrl = undefined;
         }
         
         return info;

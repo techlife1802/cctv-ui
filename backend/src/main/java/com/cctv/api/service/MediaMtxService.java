@@ -159,11 +159,14 @@ public class MediaMtxService {
         }
 
         // Generate HLS URL using streamBaseUrl
+        // Use the _audio suffixed path which has Opus-transcoded audio for browser HLS compatibility.
+        // MediaMTX auto-transcodes G.711 -> Opus via runOnReady FFmpeg and publishes to <path>_audio.
+        String hlsAudioPath = pathName + "_audio";
         String hlsUrl;
         if (streamBaseUrl.endsWith("/")) {
-            hlsUrl = streamBaseUrl + pathName + "/index.m3u8";
+            hlsUrl = streamBaseUrl + hlsAudioPath + "/index.m3u8";
         } else {
-            hlsUrl = streamBaseUrl + "/" + pathName + "/index.m3u8";
+            hlsUrl = streamBaseUrl + "/" + hlsAudioPath + "/index.m3u8";
         }
 
         // Generate WebRTC URL

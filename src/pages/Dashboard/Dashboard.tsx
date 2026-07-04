@@ -53,18 +53,14 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
 
     const handleWebRtcError = useCallback((err: Error) => {
         logger.warn("Modal WebRTC Error:", err.message);
-        // Retry WebRTC once (handles transient failures), then fall back to HLS
-        if (retryCount < 1) {
-            logger.info("WebRTC failed, retrying once...");
-            setRetryCount((prev: number) => prev + 1);
-        } else if (hlsUrl) {
-            logger.info("WebRTC failed after retry, falling back to HLS");
+        if (hlsUrl) {
+            logger.info("WebRTC failed, falling back to HLS immediately");
             setUseHlsFallback(true);
             setStreamStatus('loading');
         } else {
             setHasError(true);
         }
-    }, [hlsUrl, retryCount]);
+    }, [hlsUrl]);
 
     // Reset modal state when closed
     useEffect(() => {
@@ -115,11 +111,23 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
 
     // Handle explicit unmuting for the video element (useful for HLS fallback)
     useEffect(() => {
-        if (modalVideoRef.current) {
-            modalVideoRef.current.muted = isMuted;
-            if (!isMuted) {
-                modalVideoRef.current.play().catch(() => { });
+        // Try the ref first, fall back to finding the video in the modal DOM
+        let videoEl = modalVideoRef.current;
+        if (!videoEl) {
+            const modal = document.querySelector('.fullscreen-video-modal');
+            if (modal) {
+                videoEl = modal.querySelector('video') as HTMLVideoElement;
             }
+        }
+        if (videoEl) {
+            logger.info(`[Modal] Setting muted=${isMuted}, volume=1.0, readyState=${videoEl.readyState}`);
+            videoEl.muted = isMuted;
+            videoEl.volume = 1.0;
+            if (!isMuted) {
+                videoEl.play().catch(() => { });
+            }
+        } else {
+            logger.warn('[Modal] No video element found for unmute toggle');
         }
     }, [isMuted]);
 
@@ -137,12 +145,19 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
 
             if (streamUrl.endsWith('/info')) {
                 try {
+                    if (cachedStreamInfo) {
+                        if (cachedStreamInfo.webRtcUrl) setWebRtcUrl(cachedStreamInfo.webRtcUrl);
+                        if (cachedStreamInfo.hlsUrl) setHlsUrl(cachedStreamInfo.hlsUrl);
+                        if (cachedStreamInfo.iceServers) setIceServers(cachedStreamInfo.iceServers);
+                        return;
+                    }
+
                     const parts = streamUrl.split('?')[0].split('/');
                     const infoIdx = parts.indexOf('info');
                     if (infoIdx >= 2) {
                         const nvrId = parts[infoIdx - 2];
                         const channelId = parseInt(parts[infoIdx - 1]);
-                        const streamInfo = await streamService.getStreamInfo(nvrId, channelId);
+                        const streamInfo = await streamService.getStreamInfo(nvrId, channelId, false);
 
                         if (streamInfo.webRtcUrl) setWebRtcUrl(streamInfo.webRtcUrl);
                         if (streamInfo.hlsUrl) setHlsUrl(streamInfo.hlsUrl);
@@ -223,6 +238,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                         autoPlay
                         muted={isMuted}
                         playsInline
+                        crossOrigin="anonymous"
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                 ) : camera && webRtcUrl && !hasError && !useHlsFallback ? (
@@ -239,6 +255,9 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                 ) : useHlsFallback && hlsUrl ? (
                     <video
                         ref={(el: HTMLVideoElement | null) => {
+                            if (el) {
+                                (modalVideoRef as any).current = el;
+                            }
                             if (el && hlsUrl && !hlsInstanceRef.current) {
                                 if (Hls.isSupported()) {
                                     const hls = new Hls({
@@ -257,10 +276,17 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                                         el.play().catch((e: Error) => logger.warn("HLS Modal play error:", e));
                                     });
                                     hls.on(Hls.Events.ERROR, (_: any, data: any) => {
-                                        if (data.fatal) {
-                                            setHasError(true);
-                                            setStreamStatus('failed');
-                                        } else setStreamStatus('retrying');
+                                        if (!data.fatal) return;
+                                        logger.error("HLS Modal error:", data);
+                                        setHasError(true);
+                                        setStreamStatus('failed');
+                                        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                                            hls.startLoad();
+                                        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                                            hls.recoverMediaError();
+                                        } else {
+                                            hls.destroy();
+                                        }
                                     });
                                 } else if (el.canPlayType('application/vnd.apple.mpegurl')) {
                                     el.src = hlsUrl;
@@ -273,6 +299,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                         controls
                         muted={isMuted}
                         playsInline
+                        crossOrigin="anonymous"
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                 ) : null}
@@ -300,7 +327,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
 
 interface SelectedCameraGridProps {
     cameras: Camera[];
-    onCameraClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean, forceHls?: boolean) => void;
+    onCameraClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean, forceHls?: boolean, streamInfo?: any) => void;
     onStreamReady?: (camera: Camera, stream: MediaStream | null) => void;
     isModalOpen: boolean;
     isFullscreen: boolean;
@@ -397,7 +424,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
     const gridTemplateColumns = `repeat(${cols}, 1fr)`;
     const gridTemplateRows = isMobile ? 'auto' : `repeat(${rows}, 1fr)`;
 
-    const useSubstream = gridSize > 6;
+    const useSubstream = gridSize > 1; // Use substream for all multi-camera grid views
 
     if (!cameras || cameras.length === 0) {
         return (
@@ -513,7 +540,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                             onClick={onCameraClick}
                             onStreamReady={onStreamReady}
                             index={idx}
-                            useSubstream={useSubstream}
+                            useSubstream={gridSize > 1}
                         />
                     </div>
                 ))}
@@ -526,7 +553,7 @@ const Dashboard: React.FC = () => {
     const [allCameras, setAllCameras] = useState<Camera[]>([]);
     const [selectedCameraIds, setSelectedCameraIds] = useState<string[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
-    const [videoModal, setVideoModal] = useState<{ open: boolean; camera: Camera | null; stream?: MediaStream | null, startTalking?: boolean, forceHls?: boolean }>({
+    const [videoModal, setVideoModal] = useState<{ open: boolean; camera: Camera | null; stream?: MediaStream | null, startTalking?: boolean, forceHls?: boolean, streamInfo?: any }>({
         open: false,
         camera: null,
         stream: null,
@@ -543,10 +570,9 @@ const Dashboard: React.FC = () => {
         setStreamInfoCache((prev: Map<string, any>) => new Map(prev).set(cameraId, info));
     }, []);
 
-    const handleCameraClick = useCallback((camera: Camera, stream?: MediaStream, startTalking?: boolean, forceHls?: boolean) => {
-        // ALWAYS fetch a fresh main stream for the modal to avoid WebRTC stream sharing issues 
-        // (which cause black screens) and to ensure high quality playback.
-        setVideoModal({ open: true, camera, stream: null, startTalking, forceHls });
+    const handleCameraClick = useCallback((camera: Camera, stream?: MediaStream, startTalking?: boolean, forceHls?: boolean, streamInfo?: any) => {
+        // Reuse the streamInfo from the grid to load instantly and avoid an extra API call
+        setVideoModal({ open: true, camera, stream: null, startTalking, forceHls, streamInfo });
     }, []);
 
     const closeVideoModal = useCallback(() => {
@@ -699,7 +725,7 @@ const Dashboard: React.FC = () => {
                 onClose={closeVideoModal}
                 startTalking={videoModal.startTalking}
                 forceHls={videoModal.forceHls}
-                cachedStreamInfo={videoModal.camera ? streamInfoCache.get(String(videoModal.camera.id)) : undefined}
+                cachedStreamInfo={videoModal.streamInfo || (videoModal.camera ? streamInfoCache.get(String(videoModal.camera.id)) : undefined)}
                 onCacheStreamInfo={(info: any) => videoModal.camera && handleCacheStreamInfo(String(videoModal.camera.id), info)}
             />
         </div>

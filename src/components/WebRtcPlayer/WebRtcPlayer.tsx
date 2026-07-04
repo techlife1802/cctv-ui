@@ -250,6 +250,10 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
     useEffect(() => {
         if (videoRef.current) {
             videoRef.current.muted = muted;
+            if (!muted) {
+                videoRef.current.volume = 1.0;
+                logger.info(`[WebRtcPlayer] Unmuted video, volume set to 1.0`);
+            }
         }
     }, [muted, videoRef]);
 
@@ -260,6 +264,7 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                 autoPlay={autoPlay}
                 muted={muted}
                 playsInline
+                crossOrigin="anonymous"
                 onPlay={() => {
                     setIsLoading(false);
                     setHasError(false);
