@@ -9,8 +9,8 @@ import { AudioOutlined, AudioMutedOutlined, ReloadOutlined } from '@ant-design/i
 
 interface CameraCardProps {
     camera: Camera;
-    onClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean) => void;
-    onStreamReady?: (camera: Camera, stream: MediaStream) => void;
+    onClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean, forceHls?: boolean) => void;
+    onStreamReady?: (camera: Camera, stream: MediaStream | null) => void;
     index?: number;
     isModalCard?: boolean;
     useSubstream?: boolean;
@@ -67,29 +67,41 @@ const CameraCard: React.FC<CameraCardProps> = ({
     const [isMuted, setIsMuted] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0);
 
+    useEffect(() => {
+        logger.info(`[CameraCard Mount] camera: ${camera.name} (id: ${camera.id})`);
+        return () => {
+            logger.info(`[CameraCard Unmount] camera: ${camera.name} (id: ${camera.id})`);
+        };
+    }, [camera.name, camera.id]);
+
     const handleStatusChange = React.useCallback((status: 'loading' | 'online' | 'retrying' | 'failed') => {
         setStreamStatus(status);
     }, []);
 
     const handleWebRtcError = React.useCallback((err: Error) => {
-        logger.warn('WebRTC failed, switching to HLS fallback immediately...', err);
+        logger.warn('WebRTC failed on card, falling back to HLS:', err.message);
         setUseWebRtc(false);
-    }, []);
+        setStreamStatus('loading');
+        activeStreamRef.current = null;
+        if (onStreamReady) {
+            onStreamReady(camera, null);
+        }
+    }, [camera, onStreamReady]);
 
     const toggleAudio = (e: React.MouseEvent) => {
         e.stopPropagation();
         setIsMuted((prev: boolean) => !prev);
     };
 
-    const handleStreamReady = (stream: MediaStream) => {
+    const handleStreamReady = React.useCallback((stream: MediaStream) => {
         activeStreamRef.current = stream;
         if (onStreamReady) {
             onStreamReady(camera, stream);
         }
-    };
+    }, [camera, onStreamReady]);
 
     const handleCardClick = () => {
-        onClick(camera, activeStreamRef.current || undefined);
+        onClick(camera, activeStreamRef.current || undefined, false, !useWebRtc);
     };
 
     const handleRefresh = (e: React.MouseEvent) => {
@@ -350,6 +362,21 @@ const CameraCard: React.FC<CameraCardProps> = ({
                             autoPlay
                             playsInline
                             preload="metadata"
+                            onPlay={() => {
+                                setIsLoading(false);
+                                setHasError(false);
+                                setStreamStatus('online');
+                            }}
+                            onPlaying={() => {
+                                setIsLoading(false);
+                                setHasError(false);
+                                setStreamStatus('online');
+                            }}
+                            onError={(e) => {
+                                logger.error(`Video element error for ${camera.name}:`, e);
+                                setHasError(true);
+                                setStreamStatus('failed');
+                            }}
                             style={{
                                 width: '100%',
                                 height: '100%',

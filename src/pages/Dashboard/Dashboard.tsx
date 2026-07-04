@@ -29,12 +29,13 @@ interface VideoStreamModalProps {
     startTalking?: boolean;
     cachedStreamInfo?: { webRtcUrl?: string; hlsUrl?: string; iceServers?: any[] };
     onCacheStreamInfo?: (info: { webRtcUrl?: string; hlsUrl?: string; iceServers?: any[] }) => void;
+    forceHls?: boolean;
 }
 
-const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, camera, initialStream, onClose, startTalking, cachedStreamInfo, onCacheStreamInfo }: VideoStreamModalProps) => {
+const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, camera, initialStream, onClose, startTalking, cachedStreamInfo, onCacheStreamInfo, forceHls }: VideoStreamModalProps) => {
     const [webRtcUrl, setWebRtcUrl] = useState<string | null>(null);
     const [hlsUrl, setHlsUrl] = useState<string | null>(null);
-    const [useHlsFallback, setUseHlsFallback] = useState(false);
+    const [useHlsFallback, setUseHlsFallback] = useState(forceHls || false);
     const [hasError, setHasError] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
     const [iceServers, setIceServers] = useState<any[]>([]);
@@ -51,12 +52,15 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
     }, []);
 
     const handleWebRtcError = useCallback((err: Error) => {
-        logger.warn("Modal WebRTC Error:", err);
-        if (hlsUrl) {
-            logger.info("Falling back to HLS stream");
+        logger.warn("Modal WebRTC Error:", err.message);
+        // Retry WebRTC once (handles transient failures), then fall back to HLS
+        if (retryCount < 1) {
+            logger.info("WebRTC failed, retrying once...");
+            setRetryCount((prev: number) => prev + 1);
+        } else if (hlsUrl) {
+            logger.info("WebRTC failed after retry, falling back to HLS");
             setUseHlsFallback(true);
-        } else if (retryCount < 1) {
-            setTimeout(() => setRetryCount((prev: number) => prev + 1), 1000);
+            setStreamStatus('loading');
         } else {
             setHasError(true);
         }
@@ -83,18 +87,22 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             }
             setIsRecording(false);
             setIsMuted(true);
+        } else {
+            setUseHlsFallback(forceHls || false);
+            setRetryCount(0);
+            setHasError(false);
         }
-    }, [open, startTalking]);
+    }, [open, forceHls]);
 
-    // Loading timeout to show Retry button if stream is stuck loading
+    // Loading timeout — show Retry button if stream is stuck loading
     useEffect(() => {
-        if (open && (streamStatus === 'loading' || streamStatus === 'retrying')) {
+        if (open && !hasError && (streamStatus === 'loading' || streamStatus === 'retrying')) {
             const timer = setTimeout(() => {
                 setHasError(true);
-            }, 10000); // 10 seconds timeout
+            }, 20000); // 20s accounts for WebRTC timeout (5s) + retry (5s) + HLS startup
             return () => clearTimeout(timer);
         }
-    }, [open, streamStatus]);
+    }, [open, streamStatus, hasError]);
 
     // Attach initial stream
     useEffect(() => {
@@ -119,14 +127,6 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
     useEffect(() => {
         const resolveStreamUrl = async () => {
             if (!open || !camera?.streamUrl || initialStream) return;
-
-            // Check if we have cached info first
-            if (cachedStreamInfo && !retryCount) {
-                if (cachedStreamInfo.webRtcUrl) setWebRtcUrl(cachedStreamInfo.webRtcUrl);
-                if (cachedStreamInfo.hlsUrl) setHlsUrl(cachedStreamInfo.hlsUrl);
-                if (cachedStreamInfo.iceServers) setIceServers(cachedStreamInfo.iceServers);
-                return;
-            }
 
             let streamUrl = camera.streamUrl;
             setHasError(false);
@@ -173,32 +173,6 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         captureVideoFrame(modalVideoRef.current, camera?.name || 'camera');
     };
 
-    const handleToggleRecording = () => {
-        if (isRecording) {
-            if (recordingSessionRef.current) {
-                recordingSessionRef.current.stop();
-                recordingSessionRef.current = null;
-                setIsRecording(false);
-                message.success('Recording saved successfully');
-            }
-        } else {
-            let stream: MediaStream | null = initialStream || null;
-            if (!stream && modalVideoRef.current) {
-                stream = captureStreamFromVideo(modalVideoRef.current);
-            }
-
-            if (stream) {
-                const session = startRecording(stream, camera?.name || 'camera');
-                recordingSessionRef.current = session;
-                setIsRecording(true);
-                message.info('Recording started');
-            } else {
-                message.error('Could not start recording: No active stream');
-            }
-        }
-    };
-
-
     const isLoading = !hasError && (streamStatus === 'loading' || streamStatus === 'retrying');
 
     return (
@@ -208,14 +182,6 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             onCancel={onClose}
             zIndex={10009}
             footer={[
-                // <Button
-                //     key="record"
-                //     danger={isRecording}
-                //     icon={isRecording ? <StopOutlined /> : <PlayCircleOutlined />}
-                //     onClick={handleToggleRecording}
-                // >
-                //     {isRecording ? 'Stop Recording' : 'Start Recording'}
-                // </Button>,
                 <Button
                     key="audio"
                     icon={isMuted ? <AudioMutedOutlined /> : <AudioOutlined />}
@@ -261,6 +227,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                     />
                 ) : camera && webRtcUrl && !hasError && !useHlsFallback ? (
                     <WebRtcPlayer
+                        key={`${retryCount}-${camera.id}`}
                         streamUrl={webRtcUrl}
                         iceServers={iceServers}
                         autoPlay
@@ -333,8 +300,8 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
 
 interface SelectedCameraGridProps {
     cameras: Camera[];
-    onCameraClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean) => void;
-    onStreamReady?: (camera: Camera, stream: MediaStream) => void;
+    onCameraClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean, forceHls?: boolean) => void;
+    onStreamReady?: (camera: Camera, stream: MediaStream | null) => void;
     isModalOpen: boolean;
     isFullscreen: boolean;
     onToggleFullscreen: () => void;
@@ -559,8 +526,14 @@ const Dashboard: React.FC = () => {
     const [allCameras, setAllCameras] = useState<Camera[]>([]);
     const [selectedCameraIds, setSelectedCameraIds] = useState<string[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
-    const [videoModal, setVideoModal] = useState<{ open: boolean; camera: Camera | null; stream: MediaStream | null; startTalking?: boolean }>({ open: false, camera: null, stream: null });
-    const [activeStreams, setActiveStreams] = useState<Map<string, MediaStream>>(new Map());
+    const [videoModal, setVideoModal] = useState<{ open: boolean; camera: Camera | null; stream?: MediaStream | null, startTalking?: boolean, forceHls?: boolean }>({
+        open: false,
+        camera: null,
+        stream: null,
+        startTalking: false,
+        forceHls: false
+    });
+    const activeStreamsRef = useRef<Map<string, MediaStream>>(new Map());
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -570,16 +543,22 @@ const Dashboard: React.FC = () => {
         setStreamInfoCache((prev: Map<string, any>) => new Map(prev).set(cameraId, info));
     }, []);
 
-    const handleCameraClick = useCallback((camera: Camera, stream?: MediaStream, startTalking?: boolean) => {
-        setVideoModal({ open: true, camera, stream: stream || activeStreams.get(String(camera.id)) || null, startTalking });
-    }, [activeStreams]);
+    const handleCameraClick = useCallback((camera: Camera, stream?: MediaStream, startTalking?: boolean, forceHls?: boolean) => {
+        // ALWAYS fetch a fresh main stream for the modal to avoid WebRTC stream sharing issues 
+        // (which cause black screens) and to ensure high quality playback.
+        setVideoModal({ open: true, camera, stream: null, startTalking, forceHls });
+    }, []);
 
-    const handleCloseModal = useCallback(() => {
+    const closeVideoModal = useCallback(() => {
         setVideoModal((prev: any) => ({ ...prev, open: false }));
     }, []);
 
-    const handleStreamReady = useCallback((camera: Camera, stream: MediaStream) => {
-        setActiveStreams((prev: Map<string, MediaStream>) => new Map(prev).set(String(camera.id), stream));
+    const handleStreamReady = useCallback((camera: Camera, stream: MediaStream | null) => {
+        if (stream) {
+            activeStreamsRef.current.set(String(camera.id), stream);
+        } else {
+            activeStreamsRef.current.delete(String(camera.id));
+        }
     }, []);
 
     const handleSelectionChange = useCallback((ids: string[]) => {
@@ -717,8 +696,9 @@ const Dashboard: React.FC = () => {
                 open={videoModal.open}
                 camera={videoModal.camera}
                 initialStream={videoModal.stream}
-                onClose={handleCloseModal}
+                onClose={closeVideoModal}
                 startTalking={videoModal.startTalking}
+                forceHls={videoModal.forceHls}
                 cachedStreamInfo={videoModal.camera ? streamInfoCache.get(String(videoModal.camera.id)) : undefined}
                 onCacheStreamInfo={(info: any) => videoModal.camera && handleCacheStreamInfo(String(videoModal.camera.id), info)}
             />

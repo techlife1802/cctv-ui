@@ -183,17 +183,11 @@ public class MediaMtxService {
         log.debug("Generated API-driven MediaMTX stream URLs for {}: WebRTC={}, HLS={}",
                 streamId, webRtcUrl, hlsUrl);
 
-        // ICE Servers
+        // ICE Servers — STUN only (no TURN needed)
+        // Local network: WebRTC connects directly via STUN (host/srflx candidates)
+        // Remote network: Falls back to HLS through Cloudflare Tunnel (no TURN needed)
         java.util.List<StreamInfoDto.IceServer> iceServers = new java.util.ArrayList<>();
         iceServers.add(new StreamInfoDto.IceServer(java.util.List.of("stun:stun.l.google.com:19302"), null, null));
-
-        // Add TURN server using our public host (must be reachable via UDP/TCP)
-        // Use publicHost if set, otherwise inferred host
-        String turnHost = (publicHost != null && !publicHost.isEmpty()) ? publicHost : host;
-        iceServers.add(new StreamInfoDto.IceServer(
-                java.util.List.of("turn:" + turnHost + ":3478"),
-                "mediamtx",
-                "mediamtxpassword"));
 
         return new StreamInfoDto(webRtcUrl, hlsUrl, rtspUrl, streamId, true, iceServers);
     }
