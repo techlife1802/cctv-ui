@@ -800,6 +800,27 @@ const Dashboard: React.FC = () => {
         return () => window.removeEventListener('open-camera-sidebar', handleOpenSidebar);
     }, []);
 
+    // Prevent browser back button from navigating away from dashboard while authenticated.
+    // This pushes a dummy history entry so the back button stays on this page.
+    useEffect(() => {
+        const isAuthenticated = !!localStorage.getItem('token');
+        if (!isAuthenticated) return;
+
+        // Push a sentinel entry so there's always something to "go back to" within the app
+        window.history.pushState({ page: 'dashboard' }, '', window.location.href);
+
+        const handlePopState = (event: PopStateEvent) => {
+            // If still authenticated, re-push so back stays on dashboard
+            if (localStorage.getItem('token')) {
+                window.history.pushState({ page: 'dashboard' }, '', window.location.href);
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
+
     const handleCheckNvrStatus = useCallback(async (nvrName: string, cameras: Camera[]) => {
         const checkStatus = async () => {
             const statusPromises = cameras.map(async (cam) => {
