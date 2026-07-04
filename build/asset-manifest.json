@@ -1,16 +1,16 @@
 {
   "files": {
-    "main.css": "/static/css/main.d7ad7898.css",
-    "main.js": "/static/js/main.5b6ccb0c.js",
+    "main.css": "/static/css/main.e65ffbdd.css",
+    "main.js": "/static/js/main.14847c17.js",
     "static/js/453.de14fee8.chunk.js": "/static/js/453.de14fee8.chunk.js",
     "static/media/campus_watch_owl_logo.png": "/static/media/campus_watch_owl_logo.f7a5c50d85252d881ec3.png",
     "index.html": "/index.html",
-    "main.d7ad7898.css.map": "/static/css/main.d7ad7898.css.map",
-    "main.5b6ccb0c.js.map": "/static/js/main.5b6ccb0c.js.map",
+    "main.e65ffbdd.css.map": "/static/css/main.e65ffbdd.css.map",
+    "main.14847c17.js.map": "/static/js/main.14847c17.js.map",
     "453.de14fee8.chunk.js.map": "/static/js/453.de14fee8.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.d7ad7898.css",
-    "static/js/main.5b6ccb0c.js"
+    "static/css/main.e65ffbdd.css",
+    "static/js/main.14847c17.js"
   ]
 }
