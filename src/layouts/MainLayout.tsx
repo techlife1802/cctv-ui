@@ -128,16 +128,35 @@ const MainLayout: React.FC = () => {
                 placement="left"
                 onClose={() => setDrawerVisible(false)}
                 open={drawerVisible}
-                bodyStyle={{ padding: 0 }}
+                bodyStyle={{ padding: 0, display: 'flex', flexDirection: 'column' }}
                 className={`mobile-drawer ${currentTheme}`}
             >
-                <Menu
-                    theme={currentTheme}
-                    mode="inline"
-                    selectedKeys={[currentPath]}
-                    items={menuItems}
-                    onClick={handleMenuClick}
-                />
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                    <Menu
+                        theme={currentTheme}
+                        mode="inline"
+                        selectedKeys={[currentPath]}
+                        items={menuItems}
+                        onClick={handleMenuClick}
+                    />
+                </div>
+                <div className="mobile-drawer-footer" style={{ 
+                    padding: '16px', 
+                    borderTop: '1px solid var(--border-color)',
+                    background: 'var(--bg-secondary)'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', paddingLeft: '8px' }}>
+                        <Avatar icon={<UserOutlined />} style={{ backgroundColor: 'var(--accent-color)' }} />
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{user?.username || 'User'}</span>
+                    </div>
+                    <Menu
+                        theme={currentTheme}
+                        mode="inline"
+                        selectable={false}
+                        items={userMenu.items}
+                        style={{ borderRight: 'none', background: 'transparent' }}
+                    />
+                </div>
             </Drawer>
 
             <Content className="site-layout-content-wrapper">

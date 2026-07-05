@@ -82,12 +82,15 @@
                     transition: all 0.25s ease;
                     
                     &::after {
-                        border-bottom: 3px solid var(--accent-color) !important;
+                        border-bottom: 3px solid transparent !important;
                         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
                     }
                     
                     &:hover, &-active, &-selected {
                         color: var(--text-primary) !important;
+                        &::after {
+                            border-bottom-color: var(--accent-color) !important;
+                        }
                     }
                 }
 
@@ -130,9 +133,7 @@
                 transition: all 0.2s;
 
                 .username {
-                    @media (max-width: 576px) {
-                        display: none;
-                    }
+                    display: inline-block !important;
                 }
 
                 .ant-avatar {
@@ -171,16 +172,23 @@
 
     &.dashboard-layout {
         @media (max-width: 768px) {
-            .site-layout-header {
-                display: none !important;
-            }
             .site-layout-content-wrapper {
                 margin: 0 !important;
                 padding: 0 !important;
                 border: none !important;
                 border-radius: 0 !important;
-                height: 100vh !important;
                 background: var(--video-grid-bg) !important;
+            }
+        }
+    }
+
+    &.hide-header-mobile {
+        @media (max-width: 768px) {
+            .site-layout-header {
+                display: none !important;
+            }
+            .site-layout-content-wrapper {
+                height: 100vh !important;
             }
         }
     }

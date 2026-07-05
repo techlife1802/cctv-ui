@@ -63,7 +63,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         }
     }, [hlsUrl]);
 
-    // Reset modal state when closed
+    // Reset modal state when closed/opened
     useEffect(() => {
         if (!open) {
             setWebRtcUrl(null);
@@ -88,6 +88,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             setUseHlsFallback(forceHls || false);
             setRetryCount(0);
             setHasError(false);
+            setStreamStatus('loading'); // Ensure it starts in loading state
         }
     }, [open, forceHls]);
 
@@ -135,50 +136,79 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
     // Resolve stream URLs (WebRTC / HLS)
     useEffect(() => {
         const resolveStreamUrl = async () => {
-            if (!open || !camera?.streamUrl || initialStream) return;
+            if (!open || !camera || initialStream) return;
 
-            let streamUrl = camera.streamUrl;
             setHasError(false);
 
-            if (!streamUrl.startsWith('http://') && !streamUrl.startsWith('https://')) {
-                streamUrl = `${BASE_URL}${streamUrl}`;
+            // If we have cached stream info, use it immediately
+            if (cachedStreamInfo) {
+                if (cachedStreamInfo.webRtcUrl) setWebRtcUrl(cachedStreamInfo.webRtcUrl);
+                if (cachedStreamInfo.hlsUrl) setHlsUrl(cachedStreamInfo.hlsUrl);
+                if (cachedStreamInfo.iceServers) setIceServers(cachedStreamInfo.iceServers);
+                // Auto-enable HLS fallback if no WebRTC URL available (e.g., external Cloudflare access)
+                if (!cachedStreamInfo.webRtcUrl && cachedStreamInfo.hlsUrl) {
+                    setUseHlsFallback(true);
+                }
+                return;
             }
 
-            if (streamUrl.endsWith('/info')) {
-                try {
-                    if (cachedStreamInfo) {
-                        if (cachedStreamInfo.webRtcUrl) setWebRtcUrl(cachedStreamInfo.webRtcUrl);
-                        if (cachedStreamInfo.hlsUrl) setHlsUrl(cachedStreamInfo.hlsUrl);
-                        if (cachedStreamInfo.iceServers) setIceServers(cachedStreamInfo.iceServers);
-                        return;
-                    }
+            // Determine nvrId and channelId from the camera object or by parsing streamUrl
+            let nvrId = camera.nvrId;
+            let channelId = camera.channelId;
 
+            if ((!nvrId || channelId === undefined) && camera.streamUrl) {
+                let streamUrl = camera.streamUrl;
+                if (!streamUrl.startsWith('http://') && !streamUrl.startsWith('https://')) {
+                    streamUrl = `${BASE_URL}${streamUrl}`;
+                }
+
+                if (streamUrl.endsWith('/info')) {
                     const parts = streamUrl.split('?')[0].split('/');
                     const infoIdx = parts.indexOf('info');
                     if (infoIdx >= 2) {
-                        const nvrId = parts[infoIdx - 2];
-                        const channelId = parseInt(parts[infoIdx - 1]);
-                        const streamInfo = await streamService.getStreamInfo(nvrId, channelId, false);
-
-                        if (streamInfo.webRtcUrl) setWebRtcUrl(streamInfo.webRtcUrl);
-                        if (streamInfo.hlsUrl) setHlsUrl(streamInfo.hlsUrl);
-                        if (streamInfo.iceServers) setIceServers(streamInfo.iceServers);
-
-                        // Cache the result
-                        if (onCacheStreamInfo) {
-                            onCacheStreamInfo({
-                                webRtcUrl: streamInfo.webRtcUrl,
-                                hlsUrl: streamInfo.hlsUrl,
-                                iceServers: streamInfo.iceServers
-                            });
+                        channelId = parseInt(parts[infoIdx - 1]);
+                        if (parts[infoIdx - 2] === 'channel' && infoIdx >= 3) {
+                            nvrId = parts[infoIdx - 3];
+                        } else {
+                            nvrId = parts[infoIdx - 2];
                         }
+                    }
+                } else if (!streamUrl.endsWith('/info')) {
+                    // Direct stream URL (not /info endpoint) — use it as WebRTC URL
+                    setWebRtcUrl(streamUrl);
+                    return;
+                }
+            }
+
+            // Fetch stream info using nvrId + channelId
+            if (nvrId && channelId !== undefined && !isNaN(channelId)) {
+                try {
+                    const streamInfo = await streamService.getStreamInfo(nvrId, channelId, false);
+
+                    if (streamInfo.webRtcUrl) setWebRtcUrl(streamInfo.webRtcUrl);
+                    if (streamInfo.hlsUrl) setHlsUrl(streamInfo.hlsUrl);
+                    if (streamInfo.iceServers) setIceServers(streamInfo.iceServers);
+
+                    // Auto-enable HLS fallback if no WebRTC URL available (e.g., external Cloudflare access)
+                    if (!streamInfo.webRtcUrl && streamInfo.hlsUrl) {
+                        setUseHlsFallback(true);
+                    }
+
+                    // Cache the result
+                    if (onCacheStreamInfo) {
+                        onCacheStreamInfo({
+                            webRtcUrl: streamInfo.webRtcUrl,
+                            hlsUrl: streamInfo.hlsUrl,
+                            iceServers: streamInfo.iceServers
+                        });
                     }
                 } catch (error) {
                     logger.error("Failed to fetch stream info", error);
                     setHasError(true);
                 }
             } else {
-                setWebRtcUrl(streamUrl);
+                logger.warn("Could not determine nvrId and channelId for stream info fetch", { nvrId, channelId, streamUrl: camera.streamUrl });
+                setHasError(true);
             }
         };
 
@@ -197,6 +227,8 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             open={open}
             onCancel={onClose}
             zIndex={10009}
+            closable={false}
+            width="80vw"
             footer={[
                 <Button
                     key="audio"
@@ -218,10 +250,8 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                     Close
                 </Button>
             ]}
-            style={{ maxHeight: '85vh', top: 'auto' }}
             styles={{
                 body: {
-                    maxHeight: 'calc(85vh - 120px)',
                     overflow: 'hidden',
                     padding: 0,
                     display: 'flex',
@@ -230,7 +260,6 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             }}
             centered
             className="fullscreen-video-modal"
-            closeIcon={<CloseOutlined style={{ fontSize: '20px', color: '#fff' }} />}
         >
             <div className="modal-video-container" style={{ position: 'relative' }}>
                 {isRecording && (
@@ -326,8 +355,11 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                         )}
                     </div>
                 ) : isLoading && (
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', position: 'absolute', top: 0, left: 0, width: '100%', zIndex: 10, background: 'rgba(0,0,0,0.5)' }}>
-                        <Spin size="large" tip="Loading Stream..." />
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', position: 'absolute', top: 0, left: 0, width: '100%', zIndex: 10, background: '#000' }}>
+                        <Spin size="large" />
+                        <div style={{ marginTop: '16px', color: 'rgba(255,255,255,0.85)', fontSize: '15px' }}>
+                            Connecting to camera...
+                        </div>
                     </div>
                 )}
             </div>
@@ -778,14 +810,10 @@ const Dashboard: React.FC = () => {
     }, [isFullscreen]);
 
     useEffect(() => {
-        const hasCameras = selectedCameraIds.length > 0;
+        // Removed hide-header-mobile logic so the header and user profile are always visible
         const layout = document.querySelector('.main-layout');
         if (layout) {
-            if (hasCameras) {
-                layout.classList.add('hide-header-mobile');
-            } else {
-                layout.classList.remove('hide-header-mobile');
-            }
+            layout.classList.remove('hide-header-mobile');
         }
         return () => {
             if (layout) {
