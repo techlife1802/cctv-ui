@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { Form, Input, Button, Typography, message } from "antd";
 import { UserOutlined, LockOutlined } from "@ant-design/icons";
 import { authService } from "../../services/apiService";
@@ -13,6 +13,12 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  // If user is already authenticated, redirect to dashboard
+  const token = localStorage.getItem('token');
+  if (token) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   const onFinish = async (values: LoginRequest) => {
     setLoading(true);
     try {
@@ -21,7 +27,9 @@ const Login: React.FC = () => {
       localStorage.setItem("token", response.token);
       localStorage.setItem("user", JSON.stringify(response.user));
       message.success("Login successful!");
-      navigate("/dashboard");
+      // Use replace:true so the login page is removed from browser history.
+      // This prevents the back button from returning to the login page.
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       message.error("Invalid credentials");
     } finally {

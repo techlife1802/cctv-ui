@@ -1,3 +1,5 @@
+import { message } from 'antd';
+
 /**
  * Utility for capturing a frame from a video element and downloading it as a PNG image.
  */
@@ -7,14 +9,18 @@ export const captureVideoFrame = (
     quality: number = 0.92
 ): void => {
     if (!videoElement) {
+        message.error('Screenshot failed: Video stream is not available');
         console.warn('Screenshot failed: Video element is null');
         return;
     }
 
     try {
-        // Check if the video is actually playing/ready
-        if (videoElement.readyState < 2) {
-            console.warn('Screenshot failed: Video is not ready');
+        // Check if the video has actual renderable frames.
+        // Using videoWidth/videoHeight is more reliable than readyState for HLS.js streams,
+        // which can report low readyState even while visually playing.
+        if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
+            message.warning('Please wait for the video stream to fully load before taking a screenshot.');
+            console.warn('Screenshot failed: Video has no renderable frames (videoWidth/Height is 0, readyState:', videoElement.readyState, ')');
             return;
         }
 

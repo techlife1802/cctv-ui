@@ -57,7 +57,39 @@ export const streamService = {
         const response = await client.get(`${API_ENDPOINTS.STREAM}/${nvrId}/${channelId}/info`, {
             params: { substream }
         });
-        return response.data;
+        const info = response.data;
+        
+        // Rewrite URLs if on a local network to bypass Cloudflare and allow local WebRTC
+        const hostname = window.location.hostname;
+        const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./);
+        
+        if (isLocal) {
+            try {
+                if (info.webRtcUrl) {
+                    const url = new URL(info.webRtcUrl);
+                    url.hostname = hostname;
+                    url.port = '8000'; // Nginx proxy port handles CORS
+                    url.protocol = window.location.protocol;
+                    info.webRtcUrl = url.toString();
+                }
+                if (info.hlsUrl) {
+                    const url = new URL(info.hlsUrl);
+                    url.hostname = hostname;
+                    url.port = '8000'; // Nginx proxy port handles CORS
+                    url.protocol = window.location.protocol;
+                    info.hlsUrl = url.toString();
+                }
+            } catch (e) {
+                console.warn('Failed to rewrite stream URLs for local network:', e);
+            }
+        } else {
+            // External network via Cloudflare Tunnel (no UDP support).
+            // WebRTC will always fail without a complex TURN over TCP setup.
+            // Force HLS fallback immediately to prevent the 10-second WebRTC timeout.
+            info.webRtcUrl = undefined;
+        }
+        
+        return info;
     }
 };
 

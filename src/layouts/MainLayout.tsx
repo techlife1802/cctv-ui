@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Avatar, Dropdown, theme, Drawer, Button } from 'antd';
 import {
     DashboardOutlined,
@@ -24,6 +24,12 @@ const MainLayout: React.FC = () => {
     const { theme: currentTheme, toggleTheme } = useTheme();
     const [drawerVisible, setDrawerVisible] = useState(false);
     const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
+
+    useEffect(() => {
+        const handleOpenMenu = () => setDrawerVisible(true);
+        window.addEventListener('open-main-menu', handleOpenMenu);
+        return () => window.removeEventListener('open-main-menu', handleOpenMenu);
+    }, []);
 
     const userJson = localStorage.getItem('user');
     const user = userJson ? JSON.parse(userJson) : null;
@@ -75,9 +81,10 @@ const MainLayout: React.FC = () => {
     };
 
     const currentPath = location.pathname === '/' ? '/dashboard' : location.pathname;
+    const isDashboard = currentPath === '/dashboard';
 
     return (
-        <Layout className="main-layout">
+        <Layout className={`main-layout ${isDashboard ? 'dashboard-layout' : ''}`}>
             <Header className="site-layout-header">
                 <div className="header-left">
                     <Button

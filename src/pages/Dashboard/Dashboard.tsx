@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Typography, Modal, Empty, Spin, Button, message, Select } from 'antd';
+import { Typography, Modal, Empty, Spin, Button, message, Select, Drawer } from 'antd';
 import {
     EyeOutlined, CloseOutlined, CameraOutlined, PlayCircleOutlined, StopOutlined,
     AudioOutlined, AudioMutedOutlined, InteractionOutlined, MenuOutlined,
     LeftOutlined, RightOutlined, PauseCircleOutlined,
-    FullscreenOutlined, FullscreenExitOutlined, MenuFoldOutlined, MenuUnfoldOutlined
+    FullscreenOutlined, FullscreenExitOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
+    ControlOutlined, DashboardOutlined
 } from '@ant-design/icons';
 import { captureVideoFrame } from '../../utils/screenshotUtils';
 import { startRecording, captureStreamFromVideo, RecordingSession } from '../../utils/recordUtils';
@@ -29,12 +30,13 @@ interface VideoStreamModalProps {
     startTalking?: boolean;
     cachedStreamInfo?: { webRtcUrl?: string; hlsUrl?: string; iceServers?: any[] };
     onCacheStreamInfo?: (info: { webRtcUrl?: string; hlsUrl?: string; iceServers?: any[] }) => void;
+    forceHls?: boolean;
 }
 
-const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, camera, initialStream, onClose, startTalking, cachedStreamInfo, onCacheStreamInfo }: VideoStreamModalProps) => {
+const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, camera, initialStream, onClose, startTalking, cachedStreamInfo, onCacheStreamInfo, forceHls }: VideoStreamModalProps) => {
     const [webRtcUrl, setWebRtcUrl] = useState<string | null>(null);
     const [hlsUrl, setHlsUrl] = useState<string | null>(null);
-    const [useHlsFallback, setUseHlsFallback] = useState(false);
+    const [useHlsFallback, setUseHlsFallback] = useState(forceHls || false);
     const [hasError, setHasError] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
     const [iceServers, setIceServers] = useState<any[]>([]);
@@ -51,16 +53,15 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
     }, []);
 
     const handleWebRtcError = useCallback((err: Error) => {
-        logger.warn("Modal WebRTC Error:", err);
+        logger.warn("Modal WebRTC Error:", err.message);
         if (hlsUrl) {
-            logger.info("Falling back to HLS stream");
+            logger.info("WebRTC failed, falling back to HLS immediately");
             setUseHlsFallback(true);
-        } else if (retryCount < 1) {
-            setTimeout(() => setRetryCount((prev: number) => prev + 1), 1000);
+            setStreamStatus('loading');
         } else {
             setHasError(true);
         }
-    }, [hlsUrl, retryCount]);
+    }, [hlsUrl]);
 
     // Reset modal state when closed
     useEffect(() => {
@@ -83,18 +84,22 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             }
             setIsRecording(false);
             setIsMuted(true);
+        } else {
+            setUseHlsFallback(forceHls || false);
+            setRetryCount(0);
+            setHasError(false);
         }
-    }, [open, startTalking]);
+    }, [open, forceHls]);
 
-    // Loading timeout to show Retry button if stream is stuck loading
+    // Loading timeout — show Retry button if stream is stuck loading
     useEffect(() => {
-        if (open && (streamStatus === 'loading' || streamStatus === 'retrying')) {
+        if (open && !hasError && (streamStatus === 'loading' || streamStatus === 'retrying')) {
             const timer = setTimeout(() => {
                 setHasError(true);
-            }, 10000); // 10 seconds timeout
+            }, 20000); // 20s accounts for WebRTC timeout (5s) + retry (5s) + HLS startup
             return () => clearTimeout(timer);
         }
-    }, [open, streamStatus]);
+    }, [open, streamStatus, hasError]);
 
     // Attach initial stream
     useEffect(() => {
@@ -107,11 +112,23 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
 
     // Handle explicit unmuting for the video element (useful for HLS fallback)
     useEffect(() => {
-        if (modalVideoRef.current) {
-            modalVideoRef.current.muted = isMuted;
-            if (!isMuted) {
-                modalVideoRef.current.play().catch(() => { });
+        // Try the ref first, fall back to finding the video in the modal DOM
+        let videoEl = modalVideoRef.current;
+        if (!videoEl) {
+            const modal = document.querySelector('.fullscreen-video-modal');
+            if (modal) {
+                videoEl = modal.querySelector('video') as HTMLVideoElement;
             }
+        }
+        if (videoEl) {
+            logger.info(`[Modal] Setting muted=${isMuted}, volume=1.0, readyState=${videoEl.readyState}`);
+            videoEl.muted = isMuted;
+            videoEl.volume = 1.0;
+            if (!isMuted) {
+                videoEl.play().catch(() => { });
+            }
+        } else {
+            logger.warn('[Modal] No video element found for unmute toggle');
         }
     }, [isMuted]);
 
@@ -119,14 +136,6 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
     useEffect(() => {
         const resolveStreamUrl = async () => {
             if (!open || !camera?.streamUrl || initialStream) return;
-
-            // Check if we have cached info first
-            if (cachedStreamInfo && !retryCount) {
-                if (cachedStreamInfo.webRtcUrl) setWebRtcUrl(cachedStreamInfo.webRtcUrl);
-                if (cachedStreamInfo.hlsUrl) setHlsUrl(cachedStreamInfo.hlsUrl);
-                if (cachedStreamInfo.iceServers) setIceServers(cachedStreamInfo.iceServers);
-                return;
-            }
 
             let streamUrl = camera.streamUrl;
             setHasError(false);
@@ -137,12 +146,19 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
 
             if (streamUrl.endsWith('/info')) {
                 try {
+                    if (cachedStreamInfo) {
+                        if (cachedStreamInfo.webRtcUrl) setWebRtcUrl(cachedStreamInfo.webRtcUrl);
+                        if (cachedStreamInfo.hlsUrl) setHlsUrl(cachedStreamInfo.hlsUrl);
+                        if (cachedStreamInfo.iceServers) setIceServers(cachedStreamInfo.iceServers);
+                        return;
+                    }
+
                     const parts = streamUrl.split('?')[0].split('/');
                     const infoIdx = parts.indexOf('info');
                     if (infoIdx >= 2) {
                         const nvrId = parts[infoIdx - 2];
                         const channelId = parseInt(parts[infoIdx - 1]);
-                        const streamInfo = await streamService.getStreamInfo(nvrId, channelId);
+                        const streamInfo = await streamService.getStreamInfo(nvrId, channelId, false);
 
                         if (streamInfo.webRtcUrl) setWebRtcUrl(streamInfo.webRtcUrl);
                         if (streamInfo.hlsUrl) setHlsUrl(streamInfo.hlsUrl);
@@ -173,32 +189,6 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
         captureVideoFrame(modalVideoRef.current, camera?.name || 'camera');
     };
 
-    const handleToggleRecording = () => {
-        if (isRecording) {
-            if (recordingSessionRef.current) {
-                recordingSessionRef.current.stop();
-                recordingSessionRef.current = null;
-                setIsRecording(false);
-                message.success('Recording saved successfully');
-            }
-        } else {
-            let stream: MediaStream | null = initialStream || null;
-            if (!stream && modalVideoRef.current) {
-                stream = captureStreamFromVideo(modalVideoRef.current);
-            }
-
-            if (stream) {
-                const session = startRecording(stream, camera?.name || 'camera');
-                recordingSessionRef.current = session;
-                setIsRecording(true);
-                message.info('Recording started');
-            } else {
-                message.error('Could not start recording: No active stream');
-            }
-        }
-    };
-
-
     const isLoading = !hasError && (streamStatus === 'loading' || streamStatus === 'retrying');
 
     return (
@@ -208,14 +198,6 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
             onCancel={onClose}
             zIndex={10009}
             footer={[
-                // <Button
-                //     key="record"
-                //     danger={isRecording}
-                //     icon={isRecording ? <StopOutlined /> : <PlayCircleOutlined />}
-                //     onClick={handleToggleRecording}
-                // >
-                //     {isRecording ? 'Stop Recording' : 'Start Recording'}
-                // </Button>,
                 <Button
                     key="audio"
                     icon={isMuted ? <AudioMutedOutlined /> : <AudioOutlined />}
@@ -236,12 +218,21 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                     Close
                 </Button>
             ]}
-            width="80vw"
+            style={{ maxHeight: '85vh', top: 'auto' }}
+            styles={{
+                body: {
+                    maxHeight: 'calc(85vh - 120px)',
+                    overflow: 'hidden',
+                    padding: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                }
+            }}
             centered
             className="fullscreen-video-modal"
             closeIcon={<CloseOutlined style={{ fontSize: '20px', color: '#fff' }} />}
         >
-            <div className="modal-video-container" style={{ position: 'relative', width: '100%', height: '85vh', background: '#000' }}>
+            <div className="modal-video-container" style={{ position: 'relative' }}>
                 {isRecording && (
                     <div className="recording-indicator">
                         <div className="recording-dot" />
@@ -257,10 +248,12 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                         autoPlay
                         muted={isMuted}
                         playsInline
+                        crossOrigin="anonymous"
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                 ) : camera && webRtcUrl && !hasError && !useHlsFallback ? (
                     <WebRtcPlayer
+                        key={`${retryCount}-${camera.id}`}
                         streamUrl={webRtcUrl}
                         iceServers={iceServers}
                         autoPlay
@@ -272,6 +265,9 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                 ) : useHlsFallback && hlsUrl ? (
                     <video
                         ref={(el: HTMLVideoElement | null) => {
+                            if (el) {
+                                (modalVideoRef as any).current = el;
+                            }
                             if (el && hlsUrl && !hlsInstanceRef.current) {
                                 if (Hls.isSupported()) {
                                     const hls = new Hls({
@@ -290,10 +286,17 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                                         el.play().catch((e: Error) => logger.warn("HLS Modal play error:", e));
                                     });
                                     hls.on(Hls.Events.ERROR, (_: any, data: any) => {
-                                        if (data.fatal) {
-                                            setHasError(true);
-                                            setStreamStatus('failed');
-                                        } else setStreamStatus('retrying');
+                                        if (!data.fatal) return;
+                                        logger.error("HLS Modal error:", data);
+                                        setHasError(true);
+                                        setStreamStatus('failed');
+                                        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                                            hls.startLoad();
+                                        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                                            hls.recoverMediaError();
+                                        } else {
+                                            hls.destroy();
+                                        }
                                     });
                                 } else if (el.canPlayType('application/vnd.apple.mpegurl')) {
                                     el.src = hlsUrl;
@@ -306,6 +309,7 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
                         controls
                         muted={isMuted}
                         playsInline
+                        crossOrigin="anonymous"
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                 ) : null}
@@ -333,8 +337,8 @@ const VideoStreamModal: React.FC<VideoStreamModalProps> = React.memo(({ open, ca
 
 interface SelectedCameraGridProps {
     cameras: Camera[];
-    onCameraClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean) => void;
-    onStreamReady?: (camera: Camera, stream: MediaStream) => void;
+    onCameraClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean, forceHls?: boolean, streamInfo?: any) => void;
+    onStreamReady?: (camera: Camera, stream: MediaStream | null) => void;
     isModalOpen: boolean;
     isFullscreen: boolean;
     onToggleFullscreen: () => void;
@@ -353,6 +357,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
     const [gridSize, setGridSize] = useState(12);
     const [windowWidth, setWindowWidth] = useState(window.innerWidth);
     const [rotationInterval, setRotationInterval] = useState(120000); // Default 2 min
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const ROTATION_MS = rotationInterval;
 
     useEffect(() => {
@@ -430,7 +435,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
     const gridTemplateColumns = `repeat(${cols}, 1fr)`;
     const gridTemplateRows = isMobile ? 'auto' : `repeat(${rows}, 1fr)`;
 
-    const useSubstream = gridSize > 6;
+    const useSubstream = gridSize > 1; // Use substream for all multi-camera grid views
 
     if (!cameras || cameras.length === 0) {
         return (
@@ -449,87 +454,90 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
 
     return (
         <div className={`nvr-grid-container ${isFullscreen ? 'fullscreen' : ''}`}>
-            <div className="grid-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Title level={4} style={{ margin: 0 }}>Cameras ({cameras.length})</Title>
-                    <Select
-                        value={gridSize}
-                        style={{ width: 100 }}
-                        onChange={(value: number) => {
-                            setGridSize(value);
-                            setCurrentPage(0);
-                        }}
-                        options={[
-                            { value: 6, label: '6 View' },
-                            { value: 12, label: '12 View' },
-                            { value: 32, label: '32 View' },
-                        ]}
-                        dropdownStyle={{ zIndex: 10010 }}
-                        onClick={e => e.stopPropagation()}
-                    />
-                </div>
+            {!isMobile && (
+                <div className="grid-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <Title level={4} style={{ margin: 0 }}>Cameras ({cameras.length})</Title>
+                        <Select
+                            value={gridSize}
+                            style={{ width: 100 }}
+                            onChange={(value: number) => {
+                                setGridSize(value);
+                                            setCurrentPage(0);
+                            }}
+                            options={[
+                                { value: 6, label: '6 View' },
+                                { value: 12, label: '12 View' },
+                                { value: 32, label: '32 View' },
+                            ]}
+                            dropdownStyle={{ zIndex: 10010 }}
+                            onClick={e => e.stopPropagation()}
+                        />
+                    </div>
 
-                <div className="pagination-controls" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                    {totalPages > 1 && (
-                        <>
-                            <div className="pagination-buttons">
+                    <div className="pagination-controls" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                        {totalPages > 1 && (
+                            <>
+                                <div className="pagination-buttons">
+                                    <Button
+                                        onClick={handlePrevPage}
+                                        size="small"
+                                        icon={<LeftOutlined />}
+                                    >
+                                        <span className="btn-text">Previous</span>
+                                    </Button>
+                                    <Button
+                                        onClick={handleNextPage}
+                                        size="small"
+                                        icon={<RightOutlined />}
+                                        style={{ flexDirection: 'row-reverse' }}
+                                    >
+                                        <span className="btn-text">Next</span>
+                                    </Button>
+                                </div>
+                                <div className="pagination-info">
+                                    Page {currentPage + 1} of {totalPages} • Showing {currentCameras.length} cameras
+                                </div>
                                 <Button
-                                    onClick={handlePrevPage}
+                                    onClick={toggleAutoRotation}
+                                    type={isAutoRotating ? 'primary' : 'default'}
                                     size="small"
-                                    icon={<LeftOutlined />}
+                                    className="pagination-auto-rotate"
+                                    icon={isAutoRotating ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                                    style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
                                 >
-                                    <span className="btn-text">Previous</span>
+                                    <span className="btn-text">{isAutoRotating ? 'Pause' : 'Auto-Rotate'}</span>
                                 </Button>
-                                <Button
-                                    onClick={handleNextPage}
+                                <Select
+                                    value={rotationInterval}
                                     size="small"
-                                    icon={<RightOutlined />}
-                                    style={{ flexDirection: 'row-reverse' }}
-                                >
-                                    <span className="btn-text">Next</span>
-                                </Button>
-                            </div>
-                            <div className="pagination-info">
-                                Page {currentPage + 1} of {totalPages} • Showing {currentCameras.length} cameras
-                            </div>
-                            <Button
-                                onClick={toggleAutoRotation}
-                                type={isAutoRotating ? 'primary' : 'default'}
-                                size="small"
-                                className="pagination-auto-rotate"
-                                icon={isAutoRotating ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-                                style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
-                            >
-                                <span className="btn-text">{isAutoRotating ? 'Pause' : 'Auto-Rotate'}</span>
-                            </Button>
-                            <Select
-                                value={rotationInterval}
-                                size="small"
-                                onChange={(val: number) => setRotationInterval(val)}
-                                options={[
-                                    { value: 60000, label: '1m' },
-                                    { value: 120000, label: '2m' },
-                                    { value: 180000, label: '3m' },
-                                    { value: 360000, label: '6m' },
-                                    { value: 540000, label: '9m' },
-                                ]}
-                                dropdownStyle={{ zIndex: 10010 }}
-                                style={{ width: 65 }}
-                                className="timer-select"
-                            />
-                        </>
-                    )}
+                                    onChange={(val: number) => setRotationInterval(val)}
+                                    options={[
+                                        { value: 60000, label: '1m' },
+                                        { value: 120000, label: '2m' },
+                                        { value: 180000, label: '3m' },
+                                        { value: 360000, label: '6m' },
+                                        { value: 540000, label: '9m' },
+                                    ]}
+                                    dropdownStyle={{ zIndex: 10010 }}
+                                    style={{ width: 65 }}
+                                    className="timer-select"
+                                />
+                            </>
+                        )}
 
-                    <Button
-                        onClick={onToggleFullscreen}
-                        size="small"
-                        type={isFullscreen ? 'primary' : 'default'}
-                        icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-                    >
-                        <span className="btn-text">{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</span>
-                    </Button>
+                        <Button
+                            onClick={onToggleFullscreen}
+                            size="small"
+                            type={isFullscreen ? 'primary' : 'default'}
+                            icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                        >
+                            <span className="btn-text">{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
+
             <div
                 className="video-grid"
                 style={{
@@ -546,11 +554,163 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                             onClick={onCameraClick}
                             onStreamReady={onStreamReady}
                             index={idx}
-                            useSubstream={useSubstream}
+                            useSubstream={gridSize > 1}
                         />
                     </div>
                 ))}
             </div>
+
+            {isMobile && (
+                <>
+                    <Button
+                        type="primary"
+                        shape="circle"
+                        icon={<ControlOutlined style={{ fontSize: '22px' }} />}
+                        className="floating-control-btn"
+                        onClick={() => setIsDrawerOpen(true)}
+                        style={{
+                            position: 'fixed',
+                            bottom: '24px',
+                            right: '24px',
+                            width: '56px',
+                            height: '56px',
+                            zIndex: 999,
+                            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
+                            background: '#194ca3',
+                            border: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                    />
+                    <Drawer
+                        title={<div style={{ color: '#fff', fontSize: '18px' }}><ControlOutlined /> Dashboard Controls</div>}
+                        placement="bottom"
+                        onClose={() => setIsDrawerOpen(false)}
+                        open={isDrawerOpen}
+                        height="auto"
+                        className="mobile-controls-drawer"
+                        styles={{
+                            body: {
+                                background: '#14171c',
+                                color: '#fff',
+                                padding: '20px 16px'
+                            },
+                            header: {
+                                background: '#14171c',
+                                borderBottom: '1px solid rgba(255,255,255,0.1)',
+                                color: '#fff'
+                            }
+                        }}
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <Button 
+                                type="primary"
+                                icon={<MenuOutlined />} 
+                                onClick={() => {
+                                    setIsDrawerOpen(false);
+                                    window.dispatchEvent(new Event('open-camera-sidebar'));
+                                }}
+                                style={{ width: '100%', height: '40px', background: '#194ca3', border: 'none' }}
+                            >
+                                Select Cameras (NVR Panel)
+                            </Button>
+
+                            <Button 
+                                icon={<DashboardOutlined />} 
+                                onClick={() => {
+                                    setIsDrawerOpen(false);
+                                    window.dispatchEvent(new Event('open-main-menu'));
+                                }}
+                                style={{ width: '100%', height: '40px', background: '#252930', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}
+                            >
+                                Open Navigation Menu
+                            </Button>
+
+                            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
+                                <div style={{ fontSize: '13px', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>GRID VIEW LAYOUT</div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    {[6, 12, 32].map(size => (
+                                        <Button
+                                            key={size}
+                                            type={gridSize === size ? 'primary' : 'default'}
+                                            onClick={() => {
+                                                setGridSize(size);
+                                                setCurrentPage(0);
+                                            }}
+                                            style={{ flex: 1, height: '36px' }}
+                                        >
+                                            {size} View
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div>
+                                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#fff' }}>Auto-Rotation</div>
+                                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>Cycle through pages of cameras</div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Button
+                                        type={isAutoRotating ? 'primary' : 'default'}
+                                        onClick={() => setIsAutoRotating(prev => !prev)}
+                                        icon={isAutoRotating ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                                    >
+                                        {isAutoRotating ? 'Pause' : 'Start'}
+                                    </Button>
+                                    {isAutoRotating && (
+                                        <Select
+                                            value={rotationInterval}
+                                            onChange={(val) => setRotationInterval(val)}
+                                            options={[
+                                                { value: 60000, label: '1m' },
+                                                { value: 120000, label: '2m' },
+                                                { value: 180000, label: '3m' },
+                                            ]}
+                                            dropdownStyle={{ zIndex: 10015 }}
+                                            style={{ width: 80 }}
+                                        />
+                                    )}
+                                </div>
+                            </div>
+
+                            {totalPages > 1 && (
+                                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <Button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setCurrentPage((prev) => (prev - 1 + totalPages) % totalPages);
+                                                setIsAutoRotating(false);
+                                            }}
+                                            icon={<LeftOutlined />}
+                                            disabled={totalPages <= 1}
+                                        >
+                                            Prev
+                                        </Button>
+                                        <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.85)' }}>
+                                            Page {currentPage + 1} of {totalPages}
+                                        </span>
+                                        <Button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setCurrentPage((prev) => (prev + 1) % totalPages);
+                                                setIsAutoRotating(false);
+                                            }}
+                                            icon={<RightOutlined />}
+                                            style={{ flexDirection: 'row-reverse' }}
+                                            disabled={totalPages <= 1}
+                                        >
+                                            Next
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </Drawer>
+                </>
+            )}
         </div>
     );
 };
@@ -559,8 +719,14 @@ const Dashboard: React.FC = () => {
     const [allCameras, setAllCameras] = useState<Camera[]>([]);
     const [selectedCameraIds, setSelectedCameraIds] = useState<string[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
-    const [videoModal, setVideoModal] = useState<{ open: boolean; camera: Camera | null; stream: MediaStream | null; startTalking?: boolean }>({ open: false, camera: null, stream: null });
-    const [activeStreams, setActiveStreams] = useState<Map<string, MediaStream>>(new Map());
+    const [videoModal, setVideoModal] = useState<{ open: boolean; camera: Camera | null; stream?: MediaStream | null, startTalking?: boolean, forceHls?: boolean, streamInfo?: any }>({
+        open: false,
+        camera: null,
+        stream: null,
+        startTalking: false,
+        forceHls: false
+    });
+    const activeStreamsRef = useRef<Map<string, MediaStream>>(new Map());
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -570,16 +736,21 @@ const Dashboard: React.FC = () => {
         setStreamInfoCache((prev: Map<string, any>) => new Map(prev).set(cameraId, info));
     }, []);
 
-    const handleCameraClick = useCallback((camera: Camera, stream?: MediaStream, startTalking?: boolean) => {
-        setVideoModal({ open: true, camera, stream: stream || activeStreams.get(String(camera.id)) || null, startTalking });
-    }, [activeStreams]);
+    const handleCameraClick = useCallback((camera: Camera, stream?: MediaStream, startTalking?: boolean, forceHls?: boolean, streamInfo?: any) => {
+        // Reuse the streamInfo from the grid to load instantly and avoid an extra API call
+        setVideoModal({ open: true, camera, stream: null, startTalking, forceHls, streamInfo });
+    }, []);
 
-    const handleCloseModal = useCallback(() => {
+    const closeVideoModal = useCallback(() => {
         setVideoModal((prev: any) => ({ ...prev, open: false }));
     }, []);
 
-    const handleStreamReady = useCallback((camera: Camera, stream: MediaStream) => {
-        setActiveStreams((prev: Map<string, MediaStream>) => new Map(prev).set(String(camera.id), stream));
+    const handleStreamReady = useCallback((camera: Camera, stream: MediaStream | null) => {
+        if (stream) {
+            activeStreamsRef.current.set(String(camera.id), stream);
+        } else {
+            activeStreamsRef.current.delete(String(camera.id));
+        }
     }, []);
 
     const handleSelectionChange = useCallback((ids: string[]) => {
@@ -605,6 +776,50 @@ const Dashboard: React.FC = () => {
             setSidebarCollapsed(true);
         }
     }, [isFullscreen]);
+
+    useEffect(() => {
+        const hasCameras = selectedCameraIds.length > 0;
+        const layout = document.querySelector('.main-layout');
+        if (layout) {
+            if (hasCameras) {
+                layout.classList.add('hide-header-mobile');
+            } else {
+                layout.classList.remove('hide-header-mobile');
+            }
+        }
+        return () => {
+            if (layout) {
+                layout.classList.remove('hide-header-mobile');
+            }
+        };
+    }, [selectedCameraIds]);
+
+    useEffect(() => {
+        const handleOpenSidebar = () => setMobileSidebarOpen(true);
+        window.addEventListener('open-camera-sidebar', handleOpenSidebar);
+        return () => window.removeEventListener('open-camera-sidebar', handleOpenSidebar);
+    }, []);
+
+    // Prevent browser back button from navigating away from dashboard while authenticated.
+    // This pushes a dummy history entry so the back button stays on this page.
+    useEffect(() => {
+        const isAuthenticated = !!localStorage.getItem('token');
+        if (!isAuthenticated) return;
+
+        // Push a sentinel entry so there's always something to "go back to" within the app
+        window.history.pushState({ page: 'dashboard' }, '', window.location.href);
+
+        const handlePopState = (event: PopStateEvent) => {
+            // If still authenticated, re-push so back stays on dashboard
+            if (localStorage.getItem('token')) {
+                window.history.pushState({ page: 'dashboard' }, '', window.location.href);
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
 
     const handleCheckNvrStatus = useCallback(async (nvrName: string, cameras: Camera[]) => {
         const checkStatus = async () => {
@@ -717,9 +932,10 @@ const Dashboard: React.FC = () => {
                 open={videoModal.open}
                 camera={videoModal.camera}
                 initialStream={videoModal.stream}
-                onClose={handleCloseModal}
+                onClose={closeVideoModal}
                 startTalking={videoModal.startTalking}
-                cachedStreamInfo={videoModal.camera ? streamInfoCache.get(String(videoModal.camera.id)) : undefined}
+                forceHls={videoModal.forceHls}
+                cachedStreamInfo={videoModal.streamInfo || (videoModal.camera ? streamInfoCache.get(String(videoModal.camera.id)) : undefined)}
                 onCacheStreamInfo={(info: any) => videoModal.camera && handleCacheStreamInfo(String(videoModal.camera.id), info)}
             />
         </div>

@@ -4,8 +4,8 @@ import { Camera } from '../../types';
 
 interface LazyCameraCardProps {
     camera: Camera;
-    onClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean) => void;
-    onStreamReady?: (camera: Camera, stream: MediaStream) => void;
+    onClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean, forceHls?: boolean) => void;
+    onStreamReady?: (camera: Camera, stream: MediaStream | null) => void;
     index?: number;
     rootMargin?: string; // Intersection Observer root margin
     useSubstream?: boolean;

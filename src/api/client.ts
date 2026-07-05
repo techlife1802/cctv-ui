@@ -38,7 +38,12 @@ client.interceptors.response.use(
             // Handle unauthorized access (e.g., redirect to login)
             logger.warn('Unauthorized access, logging out...');
             localStorage.removeItem('token');
-            // window.location.href = '/login'; // Optional: Redirect
+            localStorage.removeItem('user');
+            
+            // Only redirect if we aren't already on the login page to avoid redirect loops
+            if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+            }
         } else {
             logger.error(`API Error: ${error.response?.status || 'Network Error'} ${error.config?.url}`, error.response?.data || error.message);
         }

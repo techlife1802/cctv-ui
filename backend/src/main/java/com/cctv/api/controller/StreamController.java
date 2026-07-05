@@ -127,7 +127,7 @@ public class StreamController {
     public ResponseEntity<StreamInfoDto> getStreamInfo(
             @PathVariable String nvrId,
             @PathVariable int channelId,
-            @RequestParam(required = false, defaultValue = "false") boolean substream,
+            @RequestParam(required = false, defaultValue = "true") boolean substream,
             Principal principal,
             HttpServletRequest request) {
 

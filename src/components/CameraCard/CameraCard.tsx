@@ -5,12 +5,13 @@ import { logger } from '../../utils/logger';
 import { BASE_URL } from '../../api/client';
 import { streamService } from '../../services/apiService';
 import WebRtcPlayer from '../WebRtcPlayer';
-import { AudioOutlined, AudioMutedOutlined, ReloadOutlined } from '@ant-design/icons';
+import { AudioOutlined, AudioMutedOutlined, ReloadOutlined, CameraOutlined } from '@ant-design/icons';
+import { captureVideoFrame } from '../../utils/screenshotUtils';
 
 interface CameraCardProps {
     camera: Camera;
-    onClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean) => void;
-    onStreamReady?: (camera: Camera, stream: MediaStream) => void;
+    onClick: (camera: Camera, stream?: MediaStream, startTalking?: boolean, forceHls?: boolean, streamInfo?: any) => void;
+    onStreamReady?: (camera: Camera, stream: MediaStream | null) => void;
     index?: number;
     isModalCard?: boolean;
     useSubstream?: boolean;
@@ -67,29 +68,58 @@ const CameraCard: React.FC<CameraCardProps> = ({
     const [isMuted, setIsMuted] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0);
 
+    useEffect(() => {
+        logger.info(`[CameraCard Mount] camera: ${camera.name} (id: ${camera.id})`);
+        return () => {
+            logger.info(`[CameraCard Unmount] camera: ${camera.name} (id: ${camera.id})`);
+        };
+    }, [camera.name, camera.id]);
+
     const handleStatusChange = React.useCallback((status: 'loading' | 'online' | 'retrying' | 'failed') => {
         setStreamStatus(status);
     }, []);
 
+    const handleScreenshot = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        // Try the ref first; if it's stale or not ready, find the actual playing video in the card DOM
+        let videoEl = videoRef.current;
+        if (!videoEl || videoEl.videoWidth === 0) {
+            const card = (e.currentTarget as HTMLElement).closest('.camera-card');
+            if (card) {
+                videoEl = card.querySelector('video') as HTMLVideoElement;
+            }
+        }
+        if (videoEl) {
+            captureVideoFrame(videoEl, camera.name);
+        } else {
+            captureVideoFrame(null, camera.name); // triggers the "not available" message
+        }
+    };
+
     const handleWebRtcError = React.useCallback((err: Error) => {
-        logger.warn('WebRTC failed, switching to HLS fallback immediately...', err);
+        logger.warn('WebRTC failed on card, falling back to HLS:', err.message);
         setUseWebRtc(false);
-    }, []);
+        setStreamStatus('loading');
+        activeStreamRef.current = null;
+        if (onStreamReady) {
+            onStreamReady(camera, null);
+        }
+    }, [camera, onStreamReady]);
 
     const toggleAudio = (e: React.MouseEvent) => {
         e.stopPropagation();
         setIsMuted((prev: boolean) => !prev);
     };
 
-    const handleStreamReady = (stream: MediaStream) => {
+    const handleStreamReady = React.useCallback((stream: MediaStream) => {
         activeStreamRef.current = stream;
         if (onStreamReady) {
             onStreamReady(camera, stream);
         }
-    };
+    }, [camera, onStreamReady]);
 
     const handleCardClick = () => {
-        onClick(camera, activeStreamRef.current || undefined);
+        onClick(camera, activeStreamRef.current || undefined, false, !useWebRtc, streamInfo);
     };
 
     const handleRefresh = (e: React.MouseEvent) => {
@@ -342,6 +372,7 @@ const CameraCard: React.FC<CameraCardProps> = ({
                             onStreamReady={handleStreamReady}
                             onStatusChange={handleStatusChange}
                             onError={handleWebRtcError}
+                            videoRef={videoRef}
                         />
                     ) : (
                         <video
@@ -349,7 +380,23 @@ const CameraCard: React.FC<CameraCardProps> = ({
                             muted={isMuted}
                             autoPlay
                             playsInline
+                            crossOrigin="anonymous"
                             preload="metadata"
+                            onPlay={() => {
+                                setIsLoading(false);
+                                setHasError(false);
+                                setStreamStatus('online');
+                            }}
+                            onPlaying={() => {
+                                setIsLoading(false);
+                                setHasError(false);
+                                setStreamStatus('online');
+                            }}
+                            onError={(e) => {
+                                logger.error(`Video element error for ${camera.name}:`, e);
+                                setHasError(true);
+                                setStreamStatus('failed');
+                            }}
                             style={{
                                 width: '100%',
                                 height: '100%',
@@ -424,32 +471,29 @@ const CameraCard: React.FC<CameraCardProps> = ({
             )}
 
             <div className="camera-overlay">
-                {streamStatus.toLowerCase() === 'online' ? (
-                    <div className="status-badge online" style={{
-                        background: 'transparent',
-                        border: 'none',
-                        padding: '4px',
-                        backdropFilter: 'none'
-                    }}>
-                        <div className="dot" style={{ boxShadow: '0 0 8px #52c41a' }} />
+                <div className="overlay-top">
+                    {streamStatus.toLowerCase() === 'online' ? (
+                        <div className="status-badge online">
+                            <div className="dot" style={{ boxShadow: '0 0 8px #52c41a' }} />
+                        </div>
+                    ) : (
+                        <div className={`status-badge ${streamStatus.toLowerCase()}`}>
+                            <div className="dot" />
+                            {streamStatus}
+                        </div>
+                    )}
+                    <div 
+                        className="screenshot-button" 
+                        onClick={handleScreenshot}
+                        title="Take Screenshot"
+                    >
+                        <CameraOutlined />
                     </div>
-                ) : (
-                    <div className={`status-badge ${streamStatus.toLowerCase()}`}>
-                        <div className="dot" />
-                        {streamStatus}
-                    </div>
-                )}
-                {/* <div className="camera-info">
+                </div>
+                <div className="camera-info">
                     <h4>{camera.name}</h4>
                     <p>{camera.location}</p>
-                </div> */}
-                {/* <div className="audio-toggle" onClick={toggleAudio}>
-                    {isMuted ? (
-                        <AudioMutedOutlined title="Unmute" />
-                    ) : (
-                        <AudioOutlined title="Mute" style={{ color: '#1890ff' }} />
-                    )}
-                </div> */}
+                </div>
             </div>
         </div>
     );

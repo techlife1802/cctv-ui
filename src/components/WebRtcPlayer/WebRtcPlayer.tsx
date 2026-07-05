@@ -41,6 +41,13 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
     const onStatusChangeRef = useRef(onStatusChange);
 
     useEffect(() => {
+        logger.info(`[WebRtcPlayer Mount] streamUrl: ${streamUrl}`);
+        return () => {
+            logger.info(`[WebRtcPlayer Unmount] streamUrl: ${streamUrl}`);
+        };
+    }, [streamUrl]);
+
+    useEffect(() => {
         onStreamReadyRef.current = onStreamReady;
         onErrorRef.current = onError;
         onStatusChangeRef.current = onStatusChange;
@@ -97,6 +104,23 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                     onStatusChangeRef.current?.('online');
                 };
 
+                // Detect TURN/STUN failures early for faster HLS fallback
+                pc.addEventListener('icecandidateerror', (event: any) => {
+                    logger.warn(`ICE Candidate Error [${streamUrl}]:`,
+                        `code=${event.errorCode}`,
+                        `text=${event.errorText}`,
+                        `url=${event.url}`);
+                });
+
+                // Log ICE candidates for debugging connectivity issues
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        logger.info(`ICE Candidate [${streamUrl}]:`,
+                            event.candidate.type,
+                            event.candidate.address);
+                    }
+                };
+
                 pc.addTransceiver('video', { direction: 'recvonly' });
                 pc.addTransceiver('audio', { direction: isTalking ? 'sendrecv' : 'recvonly' });
 
@@ -127,7 +151,7 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                             }
                         };
                         pc.addEventListener('icegatheringstatechange', checkState);
-                        setTimeout(resolve, 500);
+                        setTimeout(resolve, 2000);
                     }
                 });
 
@@ -138,7 +162,23 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                 });
                 if (!response.ok) throw new Error(`MediaMTX WebRTC error: ${response.status}`);
 
-                const answerSdp = await response.text();
+                let answerSdp = await response.text();
+
+                // SDP Rewrite for Local Docker: MediaMTX returns its internal Docker IP (e.g., 172.18.0.x)
+                // which the local network browser cannot route to. We rewrite the ICE candidates to the host IP.
+                const hostname = window.location.hostname;
+                const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./);
+                
+                if (isLocal && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+                    answerSdp = answerSdp.replace(/a=candidate:\S+ \d+ \S+ \d+ (\d+\.\d+\.\d+\.\d+) /g, (match, ip) => {
+                        if (ip.match(/^(192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|10\.)/)) {
+                            logger.info(`Rewriting ICE candidate IP ${ip} -> ${hostname}`);
+                            return match.replace(ip, hostname);
+                        }
+                        return match;
+                    });
+                }
+
                 await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
 
                 // Monitor inactivity
@@ -159,12 +199,13 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                     });
                 }, 500) as unknown as number;
 
-                // Play timeout
+                // Play timeout — 5s is enough for local network WebRTC
+                // Remote users will fail here and fall back to HLS
                 playTimeout = setTimeout(() => {
                     if (!['connected', 'completed'].includes(pc.iceConnectionState)) {
-                        handleError(new Error('WebRTC Connection Timeout (4s)'));
+                        handleError(new Error('WebRTC Connection Timeout'));
                     }
-                }, 4000) as unknown as number;
+                }, 5000) as unknown as number;
 
                 // setIsLoading(false); // Removed to avoid flash, logic handled by status change
             } catch (err) {
@@ -209,6 +250,10 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
     useEffect(() => {
         if (videoRef.current) {
             videoRef.current.muted = muted;
+            if (!muted) {
+                videoRef.current.volume = 1.0;
+                logger.info(`[WebRtcPlayer] Unmuted video, volume set to 1.0`);
+            }
         }
     }, [muted, videoRef]);
 
@@ -219,6 +264,22 @@ const WebRtcPlayer: React.FC<WebRtcPlayerProps> = ({
                 autoPlay={autoPlay}
                 muted={muted}
                 playsInline
+                crossOrigin="anonymous"
+                onPlay={() => {
+                    setIsLoading(false);
+                    setHasError(false);
+                    onStatusChangeRef.current?.('online');
+                }}
+                onPlaying={() => {
+                    setIsLoading(false);
+                    setHasError(false);
+                    onStatusChangeRef.current?.('online');
+                }}
+                onError={(e) => {
+                    logger.error(`WebRTC video element error for ${streamUrl}:`, e);
+                    setHasError(true);
+                    onStatusChangeRef.current?.('failed');
+                }}
                 style={{
                     width: '100%',
                     height: '100%',

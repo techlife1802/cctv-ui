@@ -23,17 +23,12 @@ services:
       - "8554:8554" # RTSP
       - "1935:1935" # RTMP
       - "8888:8888" # HLS
-      - "8889:8889" # WebRTC
-      - "8189:8189/udp" # WebRTC ICE/UDP
+      - "8889:8889" # WebRTC HTTP signaling
+      - "8189:8189/udp" # WebRTC ICE/UDP (local network)
       - "8557:8557" # API
     volumes:
       - ./mediamtx.yml:/mediamtx.yml:ro
     restart: unless-stopped
-    depends_on:
-      - coturn
-    extra_hosts:
-      - "webrtc.campuswatch.in:127.0.0.1"
-      - "stream.campuswatch.in:127.0.0.1"
 
   nginx_proxy:
     image: nginx:alpine
@@ -86,7 +81,7 @@ services:
       MEDIAMTX_API_PASSWORD: admin
       MEDIAMTX_STREAM_BASE_URL: https://stream.campuswatch.in
       MEDIAMTX_WEBRTC_BASE_URL: https://stream.campuswatch.in
-      MEDIAMTX_PUBLIC_HOST: "webrtc.campuswatch.in"
+      MEDIAMTX_PUBLIC_HOST: "stream.campuswatch.in"
     depends_on:
       db:
         condition: service_healthy
@@ -113,7 +108,7 @@ services:
     environment:
       REACT_APP_API_URL: https://api.campuswatch.in
       REACT_APP_HLS_BASE_URL: https://stream.campuswatch.in
-      REACT_APP_WEBRTC_BASE_URL: https://webrtc.campuswatch.in
+      REACT_APP_WEBRTC_BASE_URL: https://stream.campuswatch.in
     depends_on:
       backend:
         condition: service_started
