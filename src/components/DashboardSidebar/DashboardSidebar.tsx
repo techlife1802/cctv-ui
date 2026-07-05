@@ -21,7 +21,6 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     className = ''
 }) => {
     const [searchValue, setSearchValue] = React.useState('');
-
     const [expandedKeys, setExpandedKeys] = React.useState<React.Key[]>([]);
     const [autoExpandParent, setAutoExpandParent] = React.useState(true);
 
@@ -49,10 +48,8 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     };
 
     const treeData = useMemo(() => {
-        // Group cameras by Location and then NVR
         const locations: Record<string, Record<string, Camera[]>> = {};
 
-        // ... (grouping logic unchanged) ...
         cameras.forEach(cam => {
             if (!locations[cam.location]) {
                 locations[cam.location] = {};
@@ -63,7 +60,6 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
             locations[cam.location][cam.nvr].push(cam);
         });
 
-        // Filter and map to TreeData
         return Object.entries(locations).map(([locationName, nvrs]) => {
             const nvrChildren = Object.entries(nvrs).map(([nvrName, nvrCameras]) => {
                 const filteredCameras = nvrCameras.filter(cam =>
@@ -76,7 +72,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                     title: (
                         <span className="sidebar-tree-node">
                             <DatabaseOutlined className="node-icon nvr-icon" />
-                            {nvrName}
+                            <span className="node-text" title={nvrName}>{nvrName}</span>
                         </span>
                     ),
                     key: `nvr-${locationName}-${nvrName}`,
@@ -84,7 +80,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                         title: (
                             <span className="sidebar-tree-node camera-node">
                                 <CameraOutlined className="node-icon camera-icon" />
-                                {cam.name}
+                                <span className="node-text" title={cam.name}>{cam.name}</span>
                             </span>
                         ),
                         key: String(cam.id),
@@ -99,13 +95,13 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 title: (
                     <span className="sidebar-tree-node">
                         <GlobalOutlined className="node-icon location-icon" />
-                        {locationName}
+                        <span className="node-text" title={locationName}>{locationName}</span>
                     </span>
                 ),
                 key: `loc-${locationName}`,
                 children: nvrChildren
             };
-        }).filter(Boolean); // Remove nulls
+        }).filter(Boolean);
     }, [cameras, searchValue]);
 
     const onCheck = (checkedKeysValue: any) => {
@@ -138,6 +134,8 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                     expandedKeys={expandedKeys}
                     autoExpandParent={autoExpandParent}
                     onExpand={onExpand}
+                    height={500} // Enables virtual scrolling
+                    itemHeight={32}
                 />
             </div>
         </div>

@@ -14,7 +14,7 @@
         position: relative;
         z-index: 100;
         width: 100%;
-        height: 64px;
+        height: 56px;
         box-shadow: 0 4px 24px var(--glass-shadow);
 
         @media (max-width: 768px) {
@@ -49,15 +49,15 @@
                 height: 100%;
 
                 .logo-image {
-                    width: 40px;
-                    height: 40px;
+                    width: 36px;
+                    height: 36px;
                     border-radius: 50%;
                     object-fit: cover;
                     box-shadow: 0 0 10px rgba(25, 76, 163, 0.4);
                 }
 
                 .logo-text {
-                    font-size: 20px;
+                    font-size: 18px;
                     font-weight: 800;
                     color: var(--text-primary) !important; /* Premium theme-aware logo color */
                     letter-spacing: 0.5px;
@@ -171,14 +171,12 @@
     }
 
     &.dashboard-layout {
-        @media (max-width: 768px) {
-            .site-layout-content-wrapper {
-                margin: 0 !important;
-                padding: 0 !important;
-                border: none !important;
-                border-radius: 0 !important;
-                background: var(--video-grid-bg) !important;
-            }
+        .site-layout-content-wrapper {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            border-radius: 0 !important;
+            background: var(--video-grid-bg) !important;
         }
     }
 

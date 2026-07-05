@@ -64,8 +64,8 @@
     }
 
     .dashboard-sidebar {
-        width: 280px; /* Wider for better metadata space */
-        flex: 0 0 280px;
+        width: 240px; /* Slimmer for better video space */
+        flex: 0 0 240px;
         border-right: 1px solid var(--glass-border) !important;
         background: var(--sidebar-bg) !important;
         backdrop-filter: blur(20px);
@@ -87,6 +87,8 @@
             bottom: 0;
             z-index: 1000;
             box-shadow: 4px 0 24px var(--glass-shadow);
+            width: 280px;
+            flex: 0 0 280px;
 
             &.open {
                 left: 0;
@@ -95,15 +97,9 @@
             }
         }
 
-        // ... rest of sidebar styles
-
         .sidebar-header {
-            padding: 1.5rem 1.25rem;
+            padding: 1rem;
             border-bottom: 1px solid var(--glass-border) !important;
-
-            @media (max-width: 768px) {
-                padding: 1.25rem 1rem;
-            }
 
             .sidebar-title {
                 margin-bottom: 1rem !important;
@@ -141,12 +137,8 @@
 
         .sidebar-content {
             flex: 1;
-            overflow-y: auto;
-            padding: 1.25rem;
-
-            @media (max-width: 768px) {
-                padding: 1rem;
-            }
+            overflow: auto;
+            padding: 1rem;
 
             .sidebar-tree {
                 background: transparent;
@@ -159,6 +151,7 @@
                 .ant-tree-node-content-wrapper {
                     border-radius: 6px !important;
                     transition: all 0.2s ease !important;
+                    width: max-content;
 
                     &:hover {
                         background-color: rgba(255, 255, 255, 0.05) !important;
@@ -176,9 +169,15 @@
                 align-items: center;
                 gap: 8px;
                 font-size: 14px;
+                white-space: nowrap;
 
                 .node-icon {
                     font-size: 16px;
+                    flex-shrink: 0;
+                }
+
+                .node-text {
+                    white-space: nowrap;
                 }
 
                 .location-icon {
@@ -219,6 +218,10 @@
         flex: 1;
         overflow: hidden;
         display: flex;
+        flex-direction: column;
+        padding: 1rem;
+        background: var(--video-grid-bg);
+        position: relative;
 
         @media (max-width: 1024px) {
             overflow-y: auto; // Enable scroll on mobile
@@ -226,49 +229,42 @@
             height: auto;
         }
 
-        flex-direction: column;
-        padding: 1.5rem;
-        padding-top: 4rem; // Make room for menu/collapse button on all screens
-        background: var(--video-grid-bg);
-        position: relative;
-
         @media (max-width: 768px) {
             padding: 0.75rem;
             padding-top: 3.5rem;
         }
 
-        @media (max-width: 1024px) {
-            padding: 1rem;
-            padding-top: 3.5rem;
-        }
-
-        // Mobile menu button / Desktop collapse button
+        // Mobile menu button
         .mobile-menu-button {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: absolute;
-            top: 0.75rem;
-            left: 0.75rem;
-            z-index: 10;
-            width: 40px;
-            height: 40px;
-            background: var(--accent-color);
-            border: none;
-            border-radius: 8px;
-            color: #fff;
-            font-size: 18px;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            transition: all 0.2s ease;
+            display: none;
 
-            &:hover {
-                background: #40a9ff;
-                transform: scale(1.05);
-            }
+            @media (max-width: 768px) {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: absolute;
+                top: 0.75rem;
+                left: 0.75rem;
+                z-index: 10;
+                width: 40px;
+                height: 40px;
+                background: var(--accent-color);
+                border: none;
+                border-radius: 8px;
+                color: #fff;
+                font-size: 18px;
+                cursor: pointer;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+                transition: all 0.2s ease;
 
-            &:active {
-                transform: scale(0.95);
+                &:hover {
+                    background: #40a9ff;
+                    transform: scale(1.05);
+                }
+
+                &:active {
+                    transform: scale(0.95);
+                }
             }
         }
 
