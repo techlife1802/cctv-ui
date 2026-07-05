@@ -5,7 +5,7 @@
     background: var(--bg-primary);
     position: relative;
 
-    @media (max-width: 1024px) {
+    @media (max-width: 767px) {
         height: auto;
         min-height: calc(100vh - 64px);
         overflow: visible; // Allow native scroll on mobile/tablet
@@ -508,7 +508,7 @@
                     overflow-y: hidden; // Keep "no scroll" constraint on desktop
                 }
 
-                @media (max-width: 1024px) {
+                @media (max-width: 767px) {
                     height: auto;
                     flex: none; // Don't flex on mobile
                     overflow: visible; // Let page scroll handle it
@@ -519,7 +519,7 @@
                     height: 100%; // Occupy full grid cell
                     min-height: 0; // Prevent overflow
 
-                    @media (max-width: 1024px) {
+                    @media (max-width: 767px) {
                         height: auto; // Let aspect ratio determine height on mobile
                     }
                 }
@@ -552,7 +552,7 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
-    @media (max-width: 1024px) {
+    @media (max-width: 767px) {
         border-radius: 8px;
         aspect-ratio: 16 / 9; // Fix height on mobile and iPad
     }

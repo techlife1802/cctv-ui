@@ -463,9 +463,17 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
 
     const { cols, rows } = getGridDimensions(gridSize, currentCameras.length);
 
-    const isMobile = windowWidth <= 768;
+    // Detect if device is an iPad (covers iPad Pro landscape which is 1366px)
+    const isIpad = /Macintosh|iPad/i.test(navigator.userAgent) && navigator.maxTouchPoints && navigator.maxTouchPoints > 1;
+    
+    // Use the drawer filters for phones, tablets, and iPads in any orientation
+    const useCompactHeader = windowWidth <= 1024 || isIpad;
+    
+    // Only use 'auto' rows (scrollable grid) for mobile phones, NOT iPads
+    const isPhoneForGrid = windowWidth < 768 && !isIpad;
+    
     const gridTemplateColumns = `repeat(${cols}, 1fr)`;
-    const gridTemplateRows = isMobile ? 'auto' : `repeat(${rows}, 1fr)`;
+    const gridTemplateRows = isPhoneForGrid ? 'auto' : `repeat(${rows}, 1fr)`;
 
     const useSubstream = gridSize > 1; // Use substream for all multi-camera grid views
 
@@ -486,7 +494,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
 
     return (
         <div className={`nvr-grid-container ${isFullscreen ? 'fullscreen' : ''}`}>
-            {!isMobile && (
+            {!useCompactHeader && (
                 <div className="grid-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <Title level={4} style={{ margin: 0 }}>Cameras ({cameras.length})</Title>
@@ -592,7 +600,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                 ))}
             </div>
 
-            {isMobile && (
+            {useCompactHeader && (
                 <>
                     <Button
                         type="primary"
@@ -621,6 +629,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                         onClose={() => setIsDrawerOpen(false)}
                         open={isDrawerOpen}
                         height="auto"
+                        zIndex={10000}
                         className="mobile-controls-drawer"
                         styles={{
                             body: {
@@ -657,6 +666,18 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                                 style={{ width: '100%', height: '40px', background: '#252930', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}
                             >
                                 Open Navigation Menu
+                            </Button>
+
+                            <Button
+                                onClick={() => {
+                                    onToggleFullscreen();
+                                    setIsDrawerOpen(false);
+                                }}
+                                type={isFullscreen ? 'primary' : 'default'}
+                                icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                                style={{ width: '100%', height: '40px', background: isFullscreen ? '#1890ff' : '#252930', border: isFullscreen ? 'none' : '1px solid rgba(255,255,255,0.15)', color: '#fff' }}
+                            >
+                                {isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
                             </Button>
 
                             <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
