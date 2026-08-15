@@ -31,12 +31,15 @@
         border-radius: 8px;
         border: 1px solid var(--border-color);
         width: 100%;
-        overflow: hidden;
 
         .ant-table-wrapper {
             padding: 0;
             width: 100%;
         }
+    }
+
+    .config-tabs {
+        // No flex chain needed - table wrappers use inline overflow
     }
 
     .config-collapse {
