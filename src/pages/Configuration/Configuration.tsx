@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Typography, Table, Input, Button, Modal, Form, Space, message, Select, Spin, Collapse, Tag, Row, Col, TreeSelect, Checkbox, Tree } from 'antd';
+import { Typography, Table, Input, Button, Modal, Form, Space, message, Select, Spin, Tabs, Tag, Row, Col, TreeSelect, Checkbox, Tree } from 'antd';
 import {
     PlusOutlined,
     SearchOutlined,
@@ -85,8 +85,10 @@ const Configuration: React.FC = () => {
     const handleNvrSave = async (values: any) => {
         try {
             // Include discovered cameras in the save payload
-            // Map discovered cameras to the backend Camera entity structure
-            const mappedCameras = discoveredCameras.map(cam => ({
+            const userChannels = values.channels ? Number(values.channels) : null;
+            const finalChannels = userChannels || (discoveredCameras.length > 0 ? discoveredCameras.length : 32);
+
+            let mappedCameras = discoveredCameras.map(cam => ({
                 name: cam.name || cam.profileName,
                 // Don't set streamPath here - let backend generate it from nvrId_channel
                 location: values.location,
@@ -96,22 +98,34 @@ const Configuration: React.FC = () => {
                 status: cam.status
             }));
 
-            // Use discovered cameras count for channels, or default to 0 if none found (implies manual/invalid)
-            // Only update cameras/channels if we actually have discovery results (or ran discovery and found 0)
-            // This prevents wiping data on simple edits (rename etc) where discovery wasn't re-run.
+            if (mappedCameras.length > 0 && finalChannels > mappedCameras.length) {
+                // Find highest channel to continue from, or just use length
+                let maxChannel = Math.max(...mappedCameras.map(c => c.channel || 0), 0);
+                for (let i = mappedCameras.length + 1; i <= finalChannels; i++) {
+                    maxChannel++;
+                    mappedCameras.push({
+                        name: `Camera ${maxChannel}`,
+                        location: values.location,
+                        channel: maxChannel,
+                        streamUri: '',
+                        profileToken: `Channel_${maxChannel}`,
+                        status: 'Online'
+                    });
+                }
+            }
 
             let payload = { ...values };
 
             if (hasDiscoveryRun) {
                 payload.cameras = mappedCameras;
-                payload.channels = mappedCameras.length;
+                payload.channels = finalChannels;
             } else if (editingNvr) {
                 // If editing and no new discovery, preserve existing channel count (and don't send cameras to avoid wipe)
                 // Note: user might have changed other fields like name/ip, but we keep existing config
-                payload.channels = editingNvr.channels;
+                payload.channels = finalChannels || editingNvr.channels;
             } else {
-                // Adding new, no discovery -> 0 channels
-                payload.channels = 0;
+                // Adding new, no discovery
+                payload.channels = finalChannels;
             }
 
             if (editingNvr) {
@@ -394,81 +408,91 @@ const Configuration: React.FC = () => {
         <div className="page-content configuration-page">
             <Title level={2} className="page-title">Configuration</Title>
 
-            <Collapse accordion className="config-collapse">
-                <Collapse.Panel
-                    header={
-                        <Space>
-                            <VideoCameraOutlined />
-                            <span>NVR Devices</span>
-                        </Space>
+            <Tabs
+                defaultActiveKey="nvr"
+                className="config-tabs"
+                destroyInactiveTabPane
+                items={[
+                    {
+                        key: 'nvr',
+                        label: (
+                            <Space>
+                                <VideoCameraOutlined />
+                                <span>NVR Devices</span>
+                            </Space>
+                        ),
+                        children: (
+                            <div className="tab-pane-content" style={{ paddingTop: '16px' }}>
+                                <div className="actions-bar">
+                                    <Input
+                                        placeholder="Search NVR by Name, Location or IP"
+                                        prefix={<SearchOutlined />}
+                                        className="search-input"
+                                        onChange={(e) => setNvrSearchText(e.target.value)}
+                                    />
+                                    <Button
+                                        type="primary"
+                                        icon={<PlusOutlined />}
+                                        onClick={() => { setEditingNvr(null); setIsNvrModalOpen(true); }}
+                                    >
+                                        Add NVR
+                                    </Button>
+                                </div>
+
+                                <div className="nvr-table">
+                                    <Table
+                                        rowKey="id"
+                                        columns={nvrColumns}
+                                        dataSource={filteredNvrData}
+                                        loading={loadingNvrs}
+                                        scroll={{ x: 1100, y: 450 }}
+                                        pagination={false}
+                                    />
+                                </div>
+                            </div>
+                        )
+                    },
+                    {
+                        key: 'users',
+                        label: (
+                            <Space>
+                                <UserOutlined />
+                                <span>User Management</span>
+                            </Space>
+                        ),
+                        children: (
+                            <div className="tab-pane-content" style={{ paddingTop: '16px' }}>
+                                <div className="actions-bar">
+                                    <Input
+                                        placeholder="Search User by Username or Role"
+                                        prefix={<SearchOutlined />}
+                                        className="search-input"
+                                        onChange={(e) => setUserSearchText(e.target.value)}
+                                    />
+                                    <Button
+                                        type="primary"
+                                        icon={<PlusOutlined />}
+                                        onClick={() => { setEditingUser(null); setIsUserModalOpen(true); }}
+                                    >
+                                        Add User
+                                    </Button>
+                                </div>
+
+                                <div className="user-table">
+                                    <Table
+                                        rowKey="id"
+                                        columns={userColumns}
+                                        dataSource={filteredUserData}
+                                        loading={loadingUsers}
+                                        scroll={{ x: 900, y: 450 }}
+                                        pagination={false}
+                                    />
+                                </div>
+                            </div>
+                        )
                     }
-                    key="nvr"
-                >
-                    <div className="actions-bar">
-                        <Input
-                            placeholder="Search NVR by Name, Location or IP"
-                            prefix={<SearchOutlined />}
-                            className="search-input"
-                            onChange={(e) => setNvrSearchText(e.target.value)}
-                        />
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={() => { setEditingNvr(null); setIsNvrModalOpen(true); }}
-                        >
-                            Add NVR
-                        </Button>
-                    </div>
-
-                    <div className="nvr-table">
-                        <Table
-                            rowKey="id"
-                            columns={nvrColumns}
-                            dataSource={filteredNvrData}
-                            loading={loadingNvrs}
-                            scroll={{ x: 1200 }}
-                            pagination={{ pageSize: 4, showSizeChanger: false }}
-                        />
-                    </div>
-                </Collapse.Panel>
-
-                <Collapse.Panel
-                    header={
-                        <Space>
-                            <UserOutlined />
-                            <span>User Management</span>
-                        </Space>
-                    }
-                    key="users"
-                >
-                    <div className="actions-bar">
-                        <Input
-                            placeholder="Search User by Username or Role"
-                            prefix={<SearchOutlined />}
-                            className="search-input"
-                            onChange={(e) => setUserSearchText(e.target.value)}
-                        />
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={() => { setEditingUser(null); setIsUserModalOpen(true); }}
-                        >
-                            Add User
-                        </Button>
-                    </div>
-
-                    <div className="user-table">
-                        <Table
-                            rowKey="id"
-                            columns={userColumns}
-                            dataSource={filteredUserData}
-                            loading={loadingUsers}
-                            scroll={{ x: 800 }}
-                            pagination={{ pageSize: 4, showSizeChanger: false }}
-                        />
-                    </div>
-                </Collapse.Panel>
-            </Collapse>
+                ]}
+            />
 
             {/* NVR Modal */}
             <Modal
@@ -476,6 +500,7 @@ const Configuration: React.FC = () => {
                 open={isNvrModalOpen}
                 onCancel={resetNvrModal}
                 footer={null}
+                styles={{ body: { maxHeight: '70vh', overflowY: 'auto', overflowX: 'hidden', paddingRight: '12px' } }}
             >
                 <Form
                     form={nvrForm}
@@ -528,6 +553,16 @@ const Configuration: React.FC = () => {
                                 ]}
                             >
                                 <Input placeholder="192.168.1.1" />
+                            </Form.Item>
+                        </Col>
+                        <Col span={8}>
+                            <Form.Item
+                                name="channels"
+                                label="Total Channels"
+                                rules={[{ required: true, message: 'Please enter total channels (e.g. 32, 64)' }]}
+                                initialValue={32}
+                            >
+                                <Input type="number" min={1} max={128} />
                             </Form.Item>
                         </Col>
                         <Col span={8}>

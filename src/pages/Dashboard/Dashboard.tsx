@@ -458,7 +458,8 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
         if (size <= 16) return { cols: 4, rows: 4 };
         if (size <= 20) return { cols: 5, rows: 4 };
         if (size <= 25) return { cols: 5, rows: 5 };
-        return { cols: 8, rows: 4 }; // 32
+        if (size <= 32) return { cols: 8, rows: 4 }; // 32
+        return { cols: 8, rows: 8 }; // 64
     };
 
     const { cols, rows } = getGridDimensions(gridSize, currentCameras.length);
@@ -509,6 +510,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                                 { value: 6, label: '6 View' },
                                 { value: 12, label: '12 View' },
                                 { value: 32, label: '32 View' },
+                                { value: 64, label: '64 View' },
                             ]}
                             dropdownStyle={{ zIndex: 10010 }}
                             onClick={e => e.stopPropagation()}
@@ -683,7 +685,7 @@ const SelectedCameraGrid: React.FC<SelectedCameraGridProps> = ({
                             <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
                                 <div style={{ fontSize: '13px', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>GRID VIEW LAYOUT</div>
                                 <div style={{ display: 'flex', gap: '8px' }}>
-                                    {[6, 12, 32].map(size => (
+                                    {[6, 12, 32, 64].map(size => (
                                         <Button
                                             key={size}
                                             type={gridSize === size ? 'primary' : 'default'}
