@@ -32,9 +32,11 @@ import org.apache.http.util.EntityUtils;
 public class OnvifService {
 
     private final WebClient webClient;
+    private final RtspUrlBuilder rtspUrlBuilder;
 
-    public OnvifService(WebClient.Builder builder) {
+    public OnvifService(WebClient.Builder builder, RtspUrlBuilder rtspUrlBuilder) {
         this.webClient = builder.build();
+        this.rtspUrlBuilder = rtspUrlBuilder;
     }
 
     public List<OnvifCameraDto> testAndDiscover(NVR nvr) {
@@ -43,26 +45,45 @@ public class OnvifService {
         // Use the main port for connectivity check, or onvif port if provided
         String port = nvr.getPort();
         String onvifPort = nvr.getOnvifPort() == null ? "80" : nvr.getOnvifPort();
-        String user = nvr.getOnvifUsername() != null ? nvr.getOnvifUsername() : nvr.getUsername();
-        String pass = nvr.getOnvifPassword() != null ? nvr.getOnvifPassword() : nvr.getPassword();
+        String user = nvr.getUsername();
+        String pass = nvr.getPassword();
 
-        // 1. Connectivity Check
-        if (!isReachable(ip, Integer.parseInt(port))) {
-            if (!isReachable(ip, Integer.parseInt(onvifPort))) {
-                throw new RuntimeException("Device unreachable on Port " + port + " or " + onvifPort);
+        // 1. Quick TCP connectivity check
+        int checkPort = 80;
+        try {
+            checkPort = Integer.parseInt(onvifPort);
+        } catch (NumberFormatException e) {
+            log.warn("Invalid ONVIF port '{}', falling back to 80 for reachability check", onvifPort);
+        }
+
+        if (!isReachable(ip, checkPort)) {
+            // Also try main RTSP/HTTP port if onvif port failed
+            int altPort = 554;
+            try {
+                if (port != null)
+                    altPort = Integer.parseInt(port);
+            } catch (NumberFormatException ignored) {
+            }
+
+            if (!isReachable(ip, altPort)) {
+                log.warn("Device {}:{} is not reachable.", ip, checkPort);
+                return new ArrayList<>();
             }
         }
 
         List<OnvifCameraDto> cameras = new ArrayList<>();
         String typeStr = nvr.getType();
 
-        // 2. Selective Discovery
+        // 2. Targeted vendor ONVIF discovery
         if (typeStr != null) {
             if (typeStr.equalsIgnoreCase("Hikvision")) {
                 cameras = discoverHikvision(ip, onvifPort, user, pass);
             } else if (typeStr.equalsIgnoreCase("CP Plus")) {
                 cameras = discoverCpplus(ip, onvifPort, user, pass);
-            } else if (typeStr.equalsIgnoreCase("ADIVA") || typeStr.equalsIgnoreCase("SECURUS") || typeStr.equalsIgnoreCase("XMEYE")) {
+            } else if (typeStr.equalsIgnoreCase("ADIVA") 
+                    || typeStr.equalsIgnoreCase("Securus") 
+                    || typeStr.equalsIgnoreCase("Securus DVR") 
+                    || typeStr.toUpperCase().contains("XMEYE")) {
                 cameras = discoverXmeyeOnvif(ip, onvifPort, user, pass, port);
             } else {
                 // Fallback to legacy try-all if type is unknown (though UI enforces selection)
@@ -104,26 +125,7 @@ public class OnvifService {
     }
 
     private String generateFallbackStreamUri(NVR nvr, int channel) {
-        // Best-effort guess based on type, similar to NvrService.generateStreamUrl
-        // We duplicate logic slightly because we don't want circular dependency or
-        // moving logic yet.
-        String type = nvr.getType();
-        String ip = nvr.getIp();
-        String port = (nvr.getPort() != null) ? nvr.getPort() : "554";
-        String user = nvr.getUsername(); // Use RTSP creds for stream URI, not ONVIF creds
-        String pass = nvr.getPassword();
-
-        if ("Hikvision".equalsIgnoreCase(type)) {
-            return String.format("rtsp://%s:%s@%s:%s/Streaming/Channels/%d01",
-                    encode(user), encode(pass), ip, port, channel);
-        } else if ("CP Plus".equalsIgnoreCase(type)) {
-            return String.format("rtsp://%s:%s@%s:%s/cam/realmonitor?channel=%d&subtype=0",
-                    encode(user), encode(pass), ip, port, channel);
-        } else if ("ADIVA".equalsIgnoreCase(type) || "SECURUS".equalsIgnoreCase(type) || "XMEYE".equalsIgnoreCase(type)) {
-            return String.format("rtsp://%s:%s@%s:%s/user=%s_password=%s_channel=%d_stream=0.sdp?real_stream.",
-                    encode(user), encode(pass), ip, port, encode(user), encode(pass), channel);
-        }
-        return "rtsp://" + ip + "/stream" + channel; // Generic
+        return rtspUrlBuilder.buildStreamUrl(nvr, channel, false);
     }
 
     // ========================= VENDOR DISCOVERY =========================

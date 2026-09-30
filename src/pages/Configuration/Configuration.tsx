@@ -269,6 +269,7 @@ const Configuration: React.FC = () => {
                 { text: 'CP Plus', value: 'CP Plus' },
                 { text: 'ADIVA', value: 'ADIVA' },
                 { text: 'Securus', value: 'Securus' },
+                { text: 'Securus DVR', value: 'Securus DVR' },
             ],
             onFilter: (value: any, record: NVR) => record.type.indexOf(value as string) === 0,
         },
@@ -537,6 +538,7 @@ const Configuration: React.FC = () => {
                                     <Select.Option value={NVR_TYPE.CP_PLUS}>CP Plus</Select.Option>
                                     <Select.Option value={NVR_TYPE.ADIVA}>ADIVA</Select.Option>
                                     <Select.Option value={NVR_TYPE.SECURUS}>Securus</Select.Option>
+                                    <Select.Option value={NVR_TYPE.SECURUS_DVR}>Securus DVR</Select.Option>
                                 </Select>
                             </Form.Item>
                         </Col>
