@@ -21,6 +21,7 @@ export enum NVR_TYPE {
     CP_PLUS = 'CP Plus',
     ADIVA = 'ADIVA',
     SECURUS = 'Securus',
+    SECURUS_DVR = 'Securus DVR',
 }
 
 export enum USER_ROLE {

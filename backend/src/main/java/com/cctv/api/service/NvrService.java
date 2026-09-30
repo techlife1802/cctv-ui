@@ -23,6 +23,7 @@ public class NvrService {
     private final com.cctv.api.repository.CameraRepository cameraRepository;
     private final MediaMtxService mediaMtxService;
     private final OnvifService onvifService;
+    private final RtspUrlBuilder rtspUrlBuilder;
 
     @Cacheable(value = "nvrs", key = "'all' + #allowedLocations")
     public List<NVR> getAllNvrs(java.util.Set<String> allowedLocations) {
@@ -293,59 +294,7 @@ public class NvrService {
     }
 
     public String generateStreamUrl(NVR nvr, int channel, boolean substream) {
-        String url = "";
-        String port = (nvr.getPort() != null && !nvr.getPort().isEmpty()) ? nvr.getPort()
-                : AppConstants.DEFAULT_RTSP_PORT;
-
-        try {
-            // Comprehensive encoding for RTSP credentials to avoid URLEncoder issues and
-            // handle special characters
-            String username = nvr.getUsername()
-                    .replace("%", "%25")
-                    .replace("@", "%40")
-                    .replace(":", "%3A")
-                    .replace(" ", "%20")
-                    .replace("#", "%23")
-                    .replace("?", "%3F")
-                    .replace("&", "%26")
-                    .replace("+", "%2B");
-            String password = nvr.getPassword()
-                    .replace("%", "%25")
-                    .replace("@", "%40")
-                    .replace(":", "%3A")
-                    .replace(" ", "%20")
-                    .replace("#", "%23")
-                    .replace("?", "%3F")
-                    .replace("&", "%26")
-                    .replace("+", "%2B");
-
-            NvrType type = NvrType.fromString(nvr.getType());
-            if (type != null) {
-                if (type == NvrType.HIKVISION) {
-                    // Main stream: %d01, Substream: %d02
-                    int streamMode = substream ? 2 : 1;
-                    url = String.format("rtsp://%s:%s@%s:%s/Streaming/Channels/%d0%d",
-                            username, password, nvr.getIp(), port, channel, streamMode);
-                } else if (type == NvrType.CP_PLUS) {
-                    // Main stream: subtype=0, Substream: subtype=1
-                    int streamMode = substream ? 1 : 0;
-                    url = String.format("rtsp://%s:%s@%s:%s/cam/realmonitor?channel=%d&subtype=%d",
-                            username, password, nvr.getIp(), port, channel, streamMode);
-                } else if (type == NvrType.ADIVA || type == NvrType.SECURUS) {
-                    // XMEYE / Adiva / Securus
-                    int streamMode = substream ? 1 : 0;
-                    url = String.format("rtsp://%s:%s@%s:%s/user=%s_password=%s_channel=%d_stream=%d.sdp?real_stream.",
-                            username, password, nvr.getIp(), port, username, password, channel, streamMode);
-                }
-            }
-        } catch (Exception e) {
-            log.error("Error generating RTSP URL", e);
-        }
-        log.info("url is :::{}", url);
-        String maskedUrl = url.replaceFirst(":[^@]+@", ":****@");
-        log.info("Generated {} Stream URL for NVR: {} (Channel {}): {}",
-                substream ? "Substream" : "Main", nvr.getName(), channel, maskedUrl);
-        return url;
+        return rtspUrlBuilder.buildStreamUrl(nvr, channel, substream);
     }
 
     // Overload for backward compatibility
